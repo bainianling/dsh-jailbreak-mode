@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-jailbreak-mode",
   "description": "Logged per-agent jailbreak mode: automatic prompt-injection prefix for red-team safety evaluation",
-  "version": "0.1.0-rc.9",
+  "version": "0.1.0-rc.10",
   "publishConfig": {
     "access": "public"
   },
