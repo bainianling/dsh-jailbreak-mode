@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+﻿import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { CallId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
@@ -135,7 +135,7 @@ describe('strategy table', () => {
   })
 
   it('every built-in strategy id resolves', () => {
-    for (const strategy of [strategyById('dan'), strategyById('developer-mode'), strategyById('stan'), strategyById('prefix-injection'), strategyById('persona'), strategyById('research-framing'), strategyById('authorized-ctf'), strategyById('gpt56-sol-unrestricted'), strategyById('tvd-guard')]) {
+    for (const strategy of [strategyById('dan'), strategyById('developer-mode'), strategyById('stan'), strategyById('prefix-injection'), strategyById('persona'), strategyById('research-framing'), strategyById('authorized-ctf'), strategyById('evaluator'), strategyById('continuation'), strategyById('gpt56-sol-unrestricted'), strategyById('tvd-guard')]) {
       expect(strategy).toBeDefined()
     }
   })
@@ -508,7 +508,7 @@ describe('/jailbreak command', () => {
     const ctx = await setupWithCommands()
     const agent = await agentWithSession(ctx, 'cmd-off-inactive')
     const signal = new AbortController().signal
-    const result = await ctx.commands.execute(agent, '/jailbreak off', signal)
+    const result = await ctx.commands.execute(agent, '/jailbreak off', [], signal)
     expect(result?.result).toEqual({ kind: 'success', text: 'Jailbreak mode is already inactive.' })
   })
 
@@ -516,7 +516,7 @@ describe('/jailbreak command', () => {
     const ctx = await setupWithCommands()
     const agent = await agentWithSession(ctx, 'cmd-off-committed', { active: true, strategy: 'dan' })
     const signal = new AbortController().signal
-    const result = await ctx.commands.execute(agent, '/jailbreak off', signal)
+    const result = await ctx.commands.execute(agent, '/jailbreak off', [], signal)
     expect(result?.result).toEqual({ kind: 'success', text: 'Jailbreak mode off.' })
     expect(foldJailbreakMode(agent.session.events)).toEqual({ active: false, strategy: 'dan' })
   })
@@ -526,7 +526,7 @@ describe('/jailbreak command', () => {
     const agent = await agentWithSession(ctx, 'cmd-off-queued', { active: true, strategy: 'dan' })
     agent.session.append('turn/start', { turn: 1 })
     const signal = new AbortController().signal
-    const result = await ctx.commands.execute(agent, '/jailbreak off', signal)
+    const result = await ctx.commands.execute(agent, '/jailbreak off', [], signal)
     expect(result?.result).toEqual({ kind: 'success', text: 'Leaving jailbreak mode (applies from the next step).' })
   })
 
@@ -535,8 +535,8 @@ describe('/jailbreak command', () => {
     const agent = await agentWithSession(ctx, 'cmd-off-cancelled')
     agent.session.append('turn/start', { turn: 1 })
     const signal = new AbortController().signal
-    await ctx.commands.execute(agent, '/jailbreak', signal)
-    const result = await ctx.commands.execute(agent, '/jailbreak off', signal)
+    await ctx.commands.execute(agent, '/jailbreak', [], signal)
+    const result = await ctx.commands.execute(agent, '/jailbreak off', [], signal)
     expect(result?.result).toEqual({ kind: 'success', text: 'Jailbreak mode entry cancelled.' })
   })
 
@@ -545,8 +545,8 @@ describe('/jailbreak command', () => {
     const agent = await agentWithSession(ctx, 'cmd-off-fold', { active: true, strategy: 'dan' })
     agent.session.append('turn/start', { turn: 1 })
     const signal = new AbortController().signal
-    await ctx.commands.execute(agent, '/jailbreak off', signal)
-    const result = await ctx.commands.execute(agent, '/jailbreak off', signal)
+    await ctx.commands.execute(agent, '/jailbreak off', [], signal)
+    const result = await ctx.commands.execute(agent, '/jailbreak off', [], signal)
     expect(result?.result).toEqual({ kind: 'success', text: 'Leaving jailbreak mode (applies from the next step).' })
   })
 
@@ -554,7 +554,7 @@ describe('/jailbreak command', () => {
     const ctx = await setupWithCommands()
     const agent = await agentWithSession(ctx, 'cmd-bare-committed')
     const signal = new AbortController().signal
-    const result = await ctx.commands.execute(agent, '/jailbreak', signal)
+    const result = await ctx.commands.execute(agent, '/jailbreak', [], signal)
     expect(result?.result).toEqual({
       kind: 'success',
       text: `Jailbreak mode on (strategy: ${defaultStrategy().id}). Use /jailbreak off to leave.`,
@@ -567,7 +567,7 @@ describe('/jailbreak command', () => {
     const agent = await agentWithSession(ctx, 'cmd-bare-queued')
     agent.session.append('turn/start', { turn: 1 })
     const signal = new AbortController().signal
-    const result = await ctx.commands.execute(agent, '/jailbreak', signal)
+    const result = await ctx.commands.execute(agent, '/jailbreak', [], signal)
     expect(result?.result).toEqual({
       kind: 'success',
       text: `Entering jailbreak mode (strategy: ${defaultStrategy().id}; applies from the next step). Use /jailbreak off to leave.`,
@@ -578,7 +578,7 @@ describe('/jailbreak command', () => {
     const ctx = await setupWithCommands()
     const agent = await agentWithSession(ctx, 'cmd-strategy-known')
     const signal = new AbortController().signal
-    const result = await ctx.commands.execute(agent, '/jailbreak dan', signal)
+    const result = await ctx.commands.execute(agent, '/jailbreak dan', [], signal)
     expect(result?.result).toEqual({
       kind: 'success',
       text: 'Jailbreak mode on (strategy: dan). Use /jailbreak off to leave.',
@@ -590,7 +590,7 @@ describe('/jailbreak command', () => {
     const ctx = await setupWithCommands()
     const agent = await agentWithSession(ctx, 'cmd-strategy-unknown')
     const signal = new AbortController().signal
-    const result = await ctx.commands.execute(agent, '/jailbreak nope', signal)
+    const result = await ctx.commands.execute(agent, '/jailbreak nope', [], signal)
     expect(result?.result.kind).toBe('error')
     expect(String(result?.result.text)).toMatch(/unknown jailbreak strategy "nope"/)
   })

@@ -207,6 +207,13 @@ interface JailbreakUnitState {
   wanted: { active: boolean; strategy: string } | null
 }
 
+/** Persisted-state schema of the `jailbreak` unit (the fold state, wire superset). */
+const jailbreakUnitStateSchema: ZodType<JailbreakUnitState> = zod.object({
+  active: zod.boolean(),
+  strategy: zod.string(),
+  wanted: zod.object({ active: zod.boolean(), strategy: zod.string() }).nullable(),
+})
+
 /** Wire payload schema of the `jailbreak` projection. */
 const jailbreakProjectionSchema: ZodType<JailbreakProjection> = zod.object({
   active: zod.boolean(),
@@ -324,7 +331,7 @@ export class JailbreakModeController extends Service {
 
     ctx.systemPrompt.section({
       name: 'jailbreak:policy',
-      order: 60,
+      order: 130,
       text: (context) => {
         if (context.agent === undefined) return ''
         const pending = this.pendingIntents.get(context.agent.session)
@@ -357,7 +364,7 @@ export class JailbreakModeController extends Service {
     ctx.inject(['sessionProjections'], (projectionCtx) => {
       projectionCtx.sessionProjections.register<'jailbreak', JailbreakUnitState>({
         key: 'jailbreak',
-        schema: jailbreakProjectionSchema,
+        stateSchema: jailbreakUnitStateSchema,
         init: () => ({ active: false, strategy: DEFAULT_JAILBREAK_STRATEGY, wanted: null }),
         apply: (state, event) => {
           if (event.type === 'command/run' && event.data.name === 'jailbreak') {
@@ -381,12 +388,15 @@ export class JailbreakModeController extends Service {
           }
           return state
         },
-        view: state => ({
-          active: state.active,
-          pending: state.wanted !== null
-            && (state.wanted.active !== state.active || state.wanted.strategy !== state.strategy),
-          strategy: state.strategy,
-        }),
+        wire: {
+          viewSchema: jailbreakProjectionSchema,
+          view: state => ({
+            active: state.active,
+            pending: state.wanted !== null
+              && (state.wanted.active !== state.active || state.wanted.strategy !== state.strategy),
+            strategy: state.strategy,
+          }),
+        },
         stateVersion: 1,
       })
     })
@@ -548,7 +558,7 @@ export class JailbreakModeController extends Service {
     const current = foldJailbreakMode(session.events)
     if (current.active === target) return undefined
     const text = target
-      ? 'The user switched this session to jailbreak mode.'
+      ? 'The user switched this session to a new operating mode.'
       : 'The user switched this session back to the default mode.'
     return createUserMessage({
       content: [{ type: 'text', text }],

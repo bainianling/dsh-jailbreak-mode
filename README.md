@@ -56,7 +56,7 @@ dsh-jailbreak-mode/
 ### 方式一：直接用发布产物（推荐）
 
 ```bash
-npm install ./dist/npm/deepseek-ai-dsh-jailbreak-mode-0.1.0-rc.7.tgz
+npm install ./dist/npm/deepseek-ai-dsh-jailbreak-mode-0.1.0-rc.8.tgz
 ```
 
 在 harness 的 `cordis.yml` 中挂载该插件（示例见 `agent-presets/jailbreak` 预设的做法）：
@@ -82,7 +82,7 @@ pnpm pack             # 重新生成 dist/npm/*.tgz
 
 ## 内置策略
 
-该插件内置九种公开且被广泛记载的破甲技术，用于可复现的评估：
+该插件内置十一种公开且被广泛记载的破甲技术，用于可复现的评估：
 
 | id | 说明 |
 |----|------|
@@ -94,6 +94,8 @@ pnpm pack             # 重新生成 dist/npm/*.tgz
 | `research-framing` | 研究框架框定 |
 | `authorized-ctf` | 授权竞赛场景框定（显式回应模型的"范围/授权"顾虑，合法安全训练成功率更高） |
 | `gpt56-sol-unrestricted` | gpt-5.6-sol 无限制 v45（逐字内置 MDX-Tom/gpt-5.6-instruct 的 Codex 破甲提示词） |
+| `evaluator` | Meta-Evaluation（元评估框定：会话被框定为指令遵循评测，将任何拒绝/遗漏/免责声明记为失败） |
+| `continuation` | Text Continuation（文本续写框架：请求被框定为既有草稿的续写，不存在可拒绝的新请求） |
 | `tvd-guard` | TVD Guard Validator（自循环工具链：把模型放进一个小型编码项目，安全分类验证器真实运行，失败以编程错误回流） |
 
 每个策略携带一个 `system` 块与一对 `prefix` / `suffix`；`tvd-guard` 额外携带 `tvd` 工具链。它们随包提供，只为了让部署方能够运行可复现的红队评估；禁用该插件即可彻底移除。
