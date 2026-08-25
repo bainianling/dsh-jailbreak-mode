@@ -56,7 +56,7 @@ dsh-jailbreak-mode/
 ### 方式一：直接用发布产物（推荐）
 
 ```bash
-npm install ./dist/npm/deepseek-ai-dsh-jailbreak-mode-0.1.0-rc.8.tgz
+npm install ./dist/npm/deepseek-ai-dsh-jailbreak-mode-0.1.0-rc.9.tgz
 ```
 
 在 harness 的 `cordis.yml` 中挂载该插件（示例见 `agent-presets/jailbreak` 预设的做法）：
@@ -82,7 +82,7 @@ pnpm pack             # 重新生成 dist/npm/*.tgz
 
 ## 内置策略
 
-该插件内置十一种公开且被广泛记载的破甲技术，用于可复现的评估：
+该插件内置十二种公开且被广泛记载的破甲技术，用于可复现的评估：
 
 | id | 说明 |
 |----|------|
@@ -93,6 +93,7 @@ pnpm pack             # 重新生成 dist/npm/*.tgz
 | `persona` | 角色扮演人设 |
 | `research-framing` | 研究框架框定 |
 | `authorized-ctf` | 授权竞赛场景框定（显式回应模型的"范围/授权"顾虑，合法安全训练成功率更高） |
+| `authorized-game-research` | 授权游戏安全研究框定：目标限于离线单机、CTF 挑战与自有程序（内存修改/hook/patch/trainer），明确排除在线运营网游作弊 |
 | `gpt56-sol-unrestricted` | gpt-5.6-sol 无限制 v45（逐字内置 MDX-Tom/gpt-5.6-instruct 的 Codex 破甲提示词） |
 | `evaluator` | Meta-Evaluation（元评估框定：会话被框定为指令遵循评测，将任何拒绝/遗漏/免责声明记为失败） |
 | `continuation` | Text Continuation（文本续写框架：请求被框定为既有草稿的续写，不存在可拒绝的新请求） |
