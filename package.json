@@ -74,7 +74,6 @@
     "@deepseek-ai/dsh-session-projection": "^0.1.2-alpha.5",
     "@deepseek-ai/dsh-system-prompt": "^0.1.2-alpha.5",
     "@deepseek-ai/dsh-tools": "^0.1.2-alpha.5",
-    "@deepseek-ai/cordis": "^4.0.1",
     "@types/node": "^22.0.0",
     "typescript": "^5.9.0",
     "vitest": "^3.0.0"

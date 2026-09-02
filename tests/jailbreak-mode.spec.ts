@@ -529,7 +529,7 @@ describe('/jailbreak command', () => {
     const ctx = await setupWithCommands()
     const agent = await agentWithSession(ctx, 'cmd-list')
     expect(ctx.commands.list(agent)).toEqual([
-      { name: 'jailbreak', description: 'Enter or leave jailbreak mode, or switch strategy', input: { hint: '[off|strategy]' } },
+      { name: 'jailbreak', description: 'Enter or leave jailbreak mode, or switch strategy', input: { hint: '[off|strategy[+strategy...]]' } },
     ])
   })
 

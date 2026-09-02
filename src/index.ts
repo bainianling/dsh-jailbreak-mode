@@ -65,8 +65,6 @@ declare module '@deepseek-ai/cordis' {
 export interface JailbreakState {
   active: boolean
   strategy: string
-  strategyVersion?: string
-  strategySource?: 'builtin' | 'local'
 }
 
 /**
@@ -183,12 +181,7 @@ export function foldJailbreakMode(events: readonly SessionEvent[], end = events.
     if (index >= end) break
     index++
     if (event.type === 'jailbreak/mode') {
-      state = {
-        active: event.data.active,
-        strategy: event.data.strategy,
-        ...(event.data.strategyVersion === undefined ? {} : { strategyVersion: event.data.strategyVersion }),
-        ...(event.data.strategySource === undefined ? {} : { strategySource: event.data.strategySource }),
-      }
+      state = { active: event.data.active, strategy: event.data.strategy }
     }
   }
   return state

@@ -19,7 +19,7 @@ export const inject = ['invariants']
  */
 function validateEvent(event: SessionEvent, fail: InvariantFailure): void {
   if (event.type !== 'jailbreak/mode') return
-  const data = event.data as { active?: unknown; strategy?: unknown }
+  const data = event.data as { active?: unknown; strategy?: unknown; strategyVersion?: unknown; strategySource?: unknown }
   if (typeof data.active !== 'boolean') {
     fail(`jailbreak/mode carries invalid active state ${JSON.stringify(data.active)}; expected a boolean`)
   }
