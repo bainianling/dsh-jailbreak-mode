@@ -288,7 +288,7 @@ export class JailbreakModeController extends Service {
     // the command uses.
     if (this.defaultActive) {
       ctx.on('agent/created', ({ agent }) => {
-        if (hasLoggedMode(agent.session.events)) return
+        if (hasLoggedMode(agent.session.snapshotEvents())) return
         try {
           agent.session.append('jailbreak/mode', { active: true, strategy: this.defaultStrategy })
         } catch (error) {
@@ -315,7 +315,7 @@ export class JailbreakModeController extends Service {
           return decision
         }
       }
-      const state = pending ?? foldJailbreakMode(agent.session.events)
+      const state = pending ?? foldJailbreakMode(agent.session.snapshotEvents())
       if (!state.active) return decision
       const strategy = strategyById(state.strategy)
       if (strategy === undefined) return decision
@@ -335,7 +335,7 @@ export class JailbreakModeController extends Service {
       text: (context) => {
         if (context.agent === undefined) return ''
         const pending = this.pendingIntents.get(context.agent.session)
-        const state = pending ?? foldJailbreakMode(context.agent.session.events)
+        const state = pending ?? foldJailbreakMode(context.agent.session.snapshotEvents())
         if (!state.active) return ''
         const strategy = strategyById(state.strategy)
         if (strategy === undefined) return ''
@@ -418,14 +418,14 @@ export class JailbreakModeController extends Service {
               case 'cancelled':
                 return { kind: 'success', text: 'Jailbreak mode entry cancelled.' }
               case 'noop':
-                return foldJailbreakActive(agent.session.events)
+                return foldJailbreakActive(agent.session.snapshotEvents())
                   ? { kind: 'success', text: 'Leaving jailbreak mode (applies from the next step).' }
                   : { kind: 'success', text: 'Jailbreak mode is already inactive.' }
             }
           }
           let strategy: string
           if (input === '') {
-            strategy = foldJailbreakMode(agent.session.events).strategy
+            strategy = foldJailbreakMode(agent.session.snapshotEvents()).strategy
           } else {
             try {
               strategy = resolveStrategy(input)
@@ -454,7 +454,7 @@ export class JailbreakModeController extends Service {
    * @returns Current logged state plus a pending selection, when present.
    */
   get(agent: Agent): JailbreakState & { pending?: JailbreakState } {
-    const state = foldJailbreakMode(agent.session.events)
+    const state = foldJailbreakMode(agent.session.snapshotEvents())
     const pending = this.pendingIntents.get(agent.session)
     return pending === undefined
       ? state
@@ -479,13 +479,13 @@ export class JailbreakModeController extends Service {
    * was cleared; the logged state already matches), or `noop` (already in that
    * state).
    */
-  set(agent: Agent, active: boolean, strategy: string = foldJailbreakMode(agent.session.events).strategy): 'committed' | 'queued' | 'cancelled' | 'noop' {
+  set(agent: Agent, active: boolean, strategy: string = foldJailbreakMode(agent.session.snapshotEvents()).strategy): 'committed' | 'queued' | 'cancelled' | 'noop' {
     const session = agent.session
     const pending = this.pendingIntents.get(session)
-    const current = foldJailbreakMode(session.events)
+    const current = foldJailbreakMode(session.snapshotEvents())
     const target = pending ?? current
     if (active === target.active && strategy === target.strategy) return 'noop'
-    if (hasOpenTurn(session.events)) {
+    if (hasOpenTurn(session.snapshotEvents())) {
       this.pendingIntents.set(session, { active, strategy })
       return current.active === active && current.strategy === strategy ? 'cancelled' : 'queued'
     }
@@ -509,7 +509,7 @@ export class JailbreakModeController extends Service {
     // pre-step only calls onBoundary when a pending intent exists.
     /* v8 ignore next 1 -- guarded by the sole caller */
     if (pending === undefined) return
-    const current = foldJailbreakMode(session.events)
+    const current = foldJailbreakMode(session.snapshotEvents())
     if (pending.active === current.active && pending.strategy === current.strategy) {
       this.pendingIntents.delete(session)
       return
@@ -555,7 +555,7 @@ export class JailbreakModeController extends Service {
 
   /** Build a user-switch notice when the last logged state differs from the target. */
   private narration(session: Session, target: boolean): UserMessage | undefined {
-    const current = foldJailbreakMode(session.events)
+    const current = foldJailbreakMode(session.snapshotEvents())
     if (current.active === target) return undefined
     const text = target
       ? 'The user switched this session to a new operating mode.'
