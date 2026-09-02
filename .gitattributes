@@ -1,0 +1,12 @@
+# Pin text files to UTF-8 so Windows tools doing a GBK round-trip cannot
+# silently mangle CJK content (this is what corrupted README.md once already).
+*.md        text working-tree-encoding=UTF-8 eol=lf
+*.ts        text working-tree-encoding=UTF-8 eol=lf
+*.js        text working-tree-encoding=UTF-8 eol=lf
+*.json      text working-tree-encoding=UTF-8 eol=lf
+*.yml       text working-tree-encoding=UTF-8 eol=lf
+*.yaml      text working-tree-encoding=UTF-8 eol=lf
+LICENSE     text working-tree-encoding=UTF-8 eol=lf
+
+*.tgz       binary
+*.png       binary

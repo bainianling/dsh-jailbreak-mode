@@ -5,7 +5,7 @@
  * `./types` for host consumers, `./client` for client aggregates — with zero
  * content duplication.
  *
- * @module @deepseek-ai/dsh-jailbreak-mode/types
+ * @module @bainianling/dsh-jailbreak-mode/types
  */
 
 /**

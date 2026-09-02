@@ -4,7 +4,7 @@
  * discipline), so `./client` projects the same single-source content
  * `./types` serves to host consumers — zero duplication.
  *
- * @module @deepseek-ai/dsh-jailbreak-mode/client
+ * @module @bainianling/dsh-jailbreak-mode/client
  */
 
-export type * from './types.ts'
+export type * from './types.js'

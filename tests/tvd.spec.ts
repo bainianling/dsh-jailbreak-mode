@@ -28,7 +28,7 @@ async function agentWithSession(ctx: Context, id = 'agent-1', cwd?: string): Pro
   const session = Session.create(
     SessionId(id),
     undefined,
-    { version: 0, id: SessionId(id), createdAt: 0, ...(cwd !== undefined ? { cwd } : {}) },
+    { version: 0, id: SessionId(id), createdAt: 0, isSeeded: false, ...(cwd !== undefined ? { cwd } : {}) },
   )
   const agent = {
     id: SessionId(id),
@@ -142,7 +142,7 @@ describe('tvd integration', () => {
   it('defaultActive with a tvd strategy scaffolds for newly created agents', async () => {
     const { ctx, dir } = await setup({ defaultActive: true, defaultStrategy: 'tvd-guard', validatorModel: 'meta-llama/LlamaGuard-2-8b' })
     const agent = await agentWithSession(ctx, 'tvd-default', dir)
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'tvd-guard' })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'tvd-guard' })
     const events = agentEvents(ctx, agent)
     const message = { content: [{ type: 'text', text: 'go' }] } as unknown as UserMessage
     const signal = new AbortController().signal

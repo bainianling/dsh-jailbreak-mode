@@ -1,4 +1,4 @@
-/** Package-owned durable jailbreak-mode invariants. @module @deepseek-ai/dsh-jailbreak-mode/invariant */
+/** Package-owned durable jailbreak-mode invariants. @module @bainianling/dsh-jailbreak-mode/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
@@ -37,7 +37,7 @@ function validateEvent(event: SessionEvent, fail: InvariantFailure): void {
 /** Install validation for loaded and newly appended jailbreak-mode state. */
 const install: InvariantInstaller = Object.assign((ctx: Context, fail: InvariantFailure) => {
   const seed = (session: Session): void => {
-    for (const event of session.events) validateEvent(event, fail)
+    for (const event of session.snapshotEvents()) validateEvent(event, fail)
   }
   for (const session of ctx.sessions.list()) seed(session)
   ctx.on('session/created', (session) => { seed(session) }, { global: true })

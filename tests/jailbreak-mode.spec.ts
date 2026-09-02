@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -86,7 +86,7 @@ async function preStep(ctx: Context, agent: Agent & { session: Session }): Promi
 describe('foldJailbreakMode', () => {
   it('folds inactive with the default strategy from an empty log', () => {
     const session = Session.create(SessionId('fold'))
-    expect(foldJailbreakMode(session.events)).toEqual({
+    expect(foldJailbreakMode(session.snapshotEvents())).toEqual({
       active: false, strategy: defaultStrategy().id,
     })
   })
@@ -96,24 +96,24 @@ describe('foldJailbreakMode', () => {
     session.append('jailbreak/mode', { active: true, strategy: 'dan' })
     session.append('jailbreak/mode', { active: true, strategy: 'stan' })
     session.append('jailbreak/mode', { active: false, strategy: 'dan' })
-    expect(foldJailbreakMode(session.events)).toEqual({ active: false, strategy: 'dan' })
+    expect(foldJailbreakMode(session.snapshotEvents())).toEqual({ active: false, strategy: 'dan' })
   })
 
   it('end-bounded fold ignores later events', () => {
     const session = Session.create(SessionId('fold'))
     session.append('jailbreak/mode', { active: true, strategy: 'dan' })
     session.append('jailbreak/mode', { active: false, strategy: 'dan' })
-    expect(foldJailbreakMode(session.events, 1)).toEqual({ active: true, strategy: 'dan' })
+    expect(foldJailbreakMode(session.snapshotEvents(), 1)).toEqual({ active: true, strategy: 'dan' })
   })
 })
 
 describe('foldJailbreakActive', () => {
   it('folds the active flag from the log, with an optional bound', () => {
     const session = Session.create(SessionId('fold-active'))
-    expect(foldJailbreakActive(session.events)).toBe(false)
+    expect(foldJailbreakActive(session.snapshotEvents())).toBe(false)
     session.append('jailbreak/mode', { active: true, strategy: 'dan' })
-    expect(foldJailbreakActive(session.events)).toBe(true)
-    expect(foldJailbreakActive(session.events, 0)).toBe(false)
+    expect(foldJailbreakActive(session.snapshotEvents())).toBe(true)
+    expect(foldJailbreakActive(session.snapshotEvents(), 0)).toBe(false)
   })
 })
 
@@ -205,9 +205,9 @@ describe('jailbreak-mode integration', () => {
     const agent = await agentWithSession(ctx)
     // The handler path is covered by resolveStrategy; assert the fold keeps the
     // previous state when an invalid selection is attempted.
-    const before = foldJailbreakMode(agent.session.events)
+    const before = foldJailbreakMode(agent.session.snapshotEvents())
     expect(() => resolveStrategy('nope')).toThrow()
-    expect(foldJailbreakMode(agent.session.events)).toEqual(before)
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual(before)
   })
 
   it('narration is injected when the user flips the mode between turns', async () => {
@@ -216,8 +216,8 @@ describe('jailbreak-mode integration', () => {
     const jailbreak = ctx.jailbreakMode
     const outcome = jailbreak.set(agent, true, 'dan')
     expect(outcome).toBe('committed')
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'dan' })
-    const notice = agent.session.events.filter(event => event.type === 'user/message').at(-1)
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'dan' })
+    const notice = agent.session.snapshotEvents().filter(event => event.type === 'user/message').at(-1)
     expect(notice?.data.content[0]).toEqual(expect.objectContaining({ type: 'text' }))
   })
 
@@ -227,19 +227,19 @@ describe('jailbreak-mode integration', () => {
     agent.session.append('turn/start', { turn: 1 })
     expect(ctx.jailbreakMode.set(agent, true, 'dan')).toBe('queued')
     await preStep(ctx, agent)
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'dan' })
-    const notice = agent.session.events.filter(event => event.type === 'user/message').at(-1)
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'dan' })
+    const notice = agent.session.snapshotEvents().filter(event => event.type === 'user/message').at(-1)
     expect(notice?.data.content[0]).toEqual(expect.objectContaining({ type: 'text' }))
   })
 
   it('switching strategy while staying active does not narrate', async () => {
     const ctx = await setup()
     const agent = await agentWithSession(ctx, 'agent-switch', { active: true, strategy: 'dan' })
-    const before = agent.session.events.length
+    const before = agent.session.snapshotEvents().length
     expect(ctx.jailbreakMode.set(agent, true, 'stan')).toBe('committed')
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'stan' })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'stan' })
     // The mode event changed, but no user/message notice was injected.
-    expect(agent.session.events.filter(event => event.type === 'user/message').length).toBe(0)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'user/message').length).toBe(0)
     void before
   })
 
@@ -250,9 +250,9 @@ describe('jailbreak-mode integration', () => {
     const outcome = ctx.jailbreakMode.set(agent, true, 'dan')
     expect(outcome).toBe('queued')
     // Not yet folded: no jailbreak/mode event has been appended.
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: false, strategy: defaultStrategy().id })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: false, strategy: defaultStrategy().id })
     await preStep(ctx, agent)
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'dan' })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'dan' })
   })
 
   it('repeated identical selection is a no-op', async () => {
@@ -264,7 +264,7 @@ describe('jailbreak-mode integration', () => {
   it('defaultActive:true starts newly created agents in jailbreak mode', async () => {
     const ctx = await setup({ defaultActive: true })
     const agent = await agentWithSession(ctx, 'agent-default-active')
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: defaultStrategy().id })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: defaultStrategy().id })
     // The mode is durable and injects: the policy section renders and messages wrap.
     const assembly = await assembleFor(ctx, agent)
     const policy = assembly.sections.find(section => section.name === 'jailbreak:policy')
@@ -281,13 +281,13 @@ describe('jailbreak-mode integration', () => {
     const ctx = await setup({ defaultActive: true })
     // A session whose log already records inactive keeps that state on creation.
     const agent = await agentWithSession(ctx, 'agent-default-exit', { active: false })
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: false, strategy: defaultStrategy().id })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: false, strategy: defaultStrategy().id })
   })
 
   it('defaultActive:true with defaultStrategy starts agents in that strategy', async () => {
     const ctx = await setup({ defaultActive: true, defaultStrategy: 'authorized-ctf' })
     const agent = await agentWithSession(ctx, 'agent-default-strategy')
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'authorized-ctf' })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'authorized-ctf' })
     const assembly = await assembleFor(ctx, agent)
     const policy = assembly.sections.find(section => section.name === 'jailbreak:policy')
     expect(policy?.text).toContain('CTF')
@@ -317,7 +317,7 @@ describe('jailbreak-mode integration', () => {
     agent.session.append('turn/start', { turn: 1 })
     agent.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     expect(ctx.jailbreakMode.set(agent, true, 'dan')).toBe('committed')
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'dan' })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'dan' })
   })
 
   it('active mode leaves tool-result messages unwrapped', async () => {
@@ -326,7 +326,7 @@ describe('jailbreak-mode integration', () => {
     const events = agentEvents(ctx, agent)
     const message = createUserMessage({
       content: [{ type: 'text', text: 'tool result' }],
-      source: { kind: 'tool', callId: CallId('call-1') },
+      source: { kind: 'tool', callId: ToolCallId('call-1') },
     })
     const signal = new AbortController().signal
     const decision = await events.waterfall(
@@ -360,7 +360,7 @@ describe('jailbreak-mode integration', () => {
     if (agents === undefined) throw new Error('AgentRegistry must be mounted')
     agents.enter(agent, undefined)
     agents.announce(agent)
-    expect(foldJailbreakMode(session.events)).toEqual({ active: true, strategy: defaultStrategy().id })
+    expect(foldJailbreakMode(session.snapshotEvents())).toEqual({ active: true, strategy: defaultStrategy().id })
   })
 
   it('defaultActive:true warns when the initial durable append fails', async () => {
@@ -369,7 +369,7 @@ describe('jailbreak-mode integration', () => {
     const session = Session.create(SessionId('agent-append-fail'))
     const broken = {
       id: session.id,
-      events: [],
+      snapshotEvents: (): readonly never[] => [],
       append() { throw new Error('durable write failed') },
     } as unknown as Session
     const agent = { id: session.id, session: broken, options: {}, inject() {} } as unknown as Agent
@@ -395,7 +395,7 @@ describe('jailbreak-mode integration', () => {
     )
     expect(decision.kind).toBe('reject')
     // The selection was not folded: it stays pending for a later accepted step.
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: false, strategy: defaultStrategy().id })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: false, strategy: defaultStrategy().id })
   })
 
   it('an aborted signal leaves a pending selection for a later step', async () => {
@@ -413,7 +413,7 @@ describe('jailbreak-mode integration', () => {
       () => Promise.resolve({ kind: 'enter' as const, messages: [message] }),
     )
     expect(decision.kind).toBe('enter')
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: false, strategy: defaultStrategy().id })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: false, strategy: defaultStrategy().id })
   })
 
   it('a failed boundary append warns and leaves the step accepted', async () => {
@@ -479,16 +479,16 @@ describe('jailbreak-mode integration', () => {
     agent.session.append('turn/start', { turn: 1 })
     expect(ctx.jailbreakMode.set(agent, true, 'stan')).toBe('queued')
     await preStep(ctx, agent)
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'stan' })
-    expect(agent.session.events.filter(event => event.type === 'user/message').length).toBe(0)
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'stan' })
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'user/message').length).toBe(0)
   })
 
   it('switching off between turns narrates the return to the default mode', async () => {
     const ctx = await setup()
     const agent = await agentWithSession(ctx, 'agent-off-narrate', { active: true, strategy: 'dan' })
     expect(ctx.jailbreakMode.set(agent, false)).toBe('committed')
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: false, strategy: 'dan' })
-    const notice = agent.session.events.filter(event => event.type === 'user/message').at(-1)
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: false, strategy: 'dan' })
+    const notice = agent.session.snapshotEvents().filter(event => event.type === 'user/message').at(-1)
     expect(notice?.data.content[0]).toEqual({ type: 'text', text: 'The user switched this session back to the default mode.' })
   })
 
@@ -499,8 +499,8 @@ describe('jailbreak-mode integration', () => {
     expect(ctx.jailbreakMode.set(agent, true, 'stan')).toBe('queued')
     expect(ctx.jailbreakMode.set(agent, true, 'dan')).toBe('cancelled')
     await preStep(ctx, agent)
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'dan' })
-    expect(agent.session.events.filter(event => event.type === 'jailbreak/mode').length).toBe(1)
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'dan' })
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'jailbreak/mode').length).toBe(1)
   })
 
   it('an entry selection closed before its boundary is cancelled when the current state is re-selected', async () => {
@@ -547,7 +547,7 @@ describe('/jailbreak command', () => {
     const signal = new AbortController().signal
     const result = await ctx.commands.execute(agent, '/jailbreak off', [], signal)
     expect(result?.result).toEqual({ kind: 'success', text: 'Jailbreak mode off.' })
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: false, strategy: 'dan' })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: false, strategy: 'dan' })
   })
 
   it('/jailbreak off during an open turn queues the exit', async () => {
@@ -588,7 +588,7 @@ describe('/jailbreak command', () => {
       kind: 'success',
       text: `Jailbreak mode on (strategy: ${defaultStrategy().id}). Use /jailbreak off to leave.`,
     })
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: defaultStrategy().id })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: defaultStrategy().id })
   })
 
   it('/jailbreak (bare) during an open turn queues the entry', async () => {
@@ -612,7 +612,7 @@ describe('/jailbreak command', () => {
       kind: 'success',
       text: 'Jailbreak mode on (strategy: dan). Use /jailbreak off to leave.',
     })
-    expect(foldJailbreakMode(agent.session.events)).toEqual({ active: true, strategy: 'dan' })
+    expect(foldJailbreakMode(agent.session.snapshotEvents())).toEqual({ active: true, strategy: 'dan' })
   })
 
   it('/jailbreak with an unknown strategy fails loud', async () => {

@@ -10,12 +10,12 @@
  * from the session log alone (model-visible ⟺ logged). No extra session event
  * is needed.
  *
- * @module @deepseek-ai/dsh-jailbreak-mode/tvd
+ * @module @bainianling/dsh-jailbreak-mode/tvd
  */
 
 import { join } from 'node:path'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
-import type { JailbreakStrategy, TvdWorkspaceFile } from './strategies.ts'
+import type { JailbreakStrategy, TvdWorkspaceFile } from './strategies.js'
 
 /** Default workspace subdirectory under the session cwd. */
 export const DEFAULT_TVD_SUBDIR = 'tvd'

@@ -61,6 +61,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-agent": "^0.1.2-alpha.5",
     "@deepseek-ai/dsh-code-runtime": "^0.1.2-alpha.5",
     "@deepseek-ai/dsh-commands": "^0.1.2-alpha.5",

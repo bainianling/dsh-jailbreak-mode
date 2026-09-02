@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
-/** Self-reference package entrypoints to source while testing. */
+/** Self-reference the package entrypoints to src so tests run without a build. */
 export default defineConfig({
   resolve: {
     alias: {
@@ -9,5 +9,8 @@ export default defineConfig({
       '@bainianling/dsh-jailbreak-mode/invariant': fileURLToPath(new URL('./src/invariant.ts', import.meta.url)),
     },
   },
-  test: { environment: 'node', include: ['tests/**/*.spec.ts'] },
+  test: {
+    environment: 'node',
+    include: ['tests/**/*.spec.ts'],
+  },
 })
