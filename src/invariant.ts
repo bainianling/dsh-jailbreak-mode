@@ -4,7 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-jailbreak-mode'
+const PACKAGE_NAME = '@bainianling/dsh-jailbreak-mode'
 
 /** Cordis companion plugin name. */
 export const name = 'jailbreak-mode-invariant'
@@ -25,6 +25,12 @@ function validateEvent(event: SessionEvent, fail: InvariantFailure): void {
   }
   if (typeof data.strategy !== 'string') {
     fail(`jailbreak/mode carries invalid strategy ${JSON.stringify(data.strategy)}; expected a string`)
+  }
+  if (data.strategyVersion !== undefined && typeof data.strategyVersion !== 'string') {
+    fail(`jailbreak/mode carries invalid strategyVersion ${JSON.stringify(data.strategyVersion)}; expected a string`)
+  }
+  if (data.strategySource !== undefined && data.strategySource !== 'builtin' && data.strategySource !== 'local') {
+    fail(`jailbreak/mode carries invalid strategySource ${JSON.stringify(data.strategySource)}; expected builtin or local`)
   }
 }
 

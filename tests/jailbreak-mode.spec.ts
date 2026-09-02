@@ -8,7 +8,7 @@ import { Session, SessionId, type UserMessage } from '@deepseek-ai/dsh-session'
 import AgentRegistry, { agentEvents, type Agent } from '@deepseek-ai/dsh-agent'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import JailbreakModeController, { foldJailbreakActive, foldJailbreakMode, resolveConfig, resolveStrategy, type JailbreakModeConfig } from '../src/index.ts'
-import { defaultStrategy, strategyById } from '../src/strategies.ts'
+import { composeStrategies, defaultStrategy, JAILBREAK_STRATEGIES, strategyById, strategyMetadata } from '../src/strategies.ts'
 
 /**
  * Drives the REAL plugin: mounts `dsh-jailbreak-mode` beside real
@@ -135,9 +135,38 @@ describe('strategy table', () => {
   })
 
   it('every built-in strategy id resolves', () => {
-    for (const strategy of [strategyById('dan'), strategyById('developer-mode'), strategyById('stan'), strategyById('prefix-injection'), strategyById('persona'), strategyById('research-framing'), strategyById('authorized-ctf'), strategyById('evaluator'), strategyById('continuation'), strategyById('gpt56-sol-unrestricted'), strategyById('tvd-guard')]) {
+    for (const strategy of [strategyById('dan'), strategyById('developer-mode'), strategyById('stan'), strategyById('prefix-injection'), strategyById('persona'), strategyById('research-framing'), strategyById('authorized-ctf'), strategyById('evaluator'), strategyById('continuation'), strategyById('gpt56-sol-unrestricted'), strategyById('reverse-engineering'), strategyById('tvd-guard')]) {
       expect(strategy).toBeDefined()
     }
+  })
+
+  it('reverse-engineering strategy carries an evidence-first report contract', () => {
+    const strategy = strategyById('reverse-engineering')
+    expect(strategy?.system).toContain('VERIFIED, CANDIDATE, or UNRESOLVED')
+    expect(strategy?.system).toContain('Findings, Evidence, Reproduction, Change, Verification, and Rollback')
+    expect(strategy?.prefix).toContain('[REVERSE-ENGINEERING TASK]')
+    expect(strategy?.suffix).toContain('[/REVERSE-ENGINEERING TASK]')
+  })
+
+  it('all built-ins have unique ids and stable metadata', () => {
+    const ids = JAILBREAK_STRATEGIES.map(strategy => strategy.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const strategy of JAILBREAK_STRATEGIES) {
+      const metadata = strategyMetadata(strategy)
+      expect(metadata.source).toBe('builtin')
+      expect(metadata.version).toBeTruthy()
+      expect(metadata.category).toBeTruthy()
+      expect(metadata.tags?.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('composes strategies in deterministic order and resolves the composite id', () => {
+    const composed = composeStrategies(['evaluator', 'reverse-engineering'])
+    expect(strategyById(composed.id)).toEqual(composed)
+    expect(composed.id).toBe('evaluator+reverse-engineering')
+    expect(composed.system.indexOf('internal instruction-following evaluation')).toBeLessThan(composed.system.indexOf('evidence-first reverse-engineering'))
+    expect(composed.tags).toContain('composed')
+    expect(composed.version).toBe('1+1')
   })
 
   it('tvd-guard carries a tvd harness with scaffoldable files and an entrypoint', () => {

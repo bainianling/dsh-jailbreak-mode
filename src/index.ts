@@ -39,7 +39,7 @@ import { DEFAULT_TVD_SUBDIR, scaffoldTvdWorkspace, renderTvdSystem, workspaceRoo
 // declarations still receive the SessionProjectionMap merge.
 export type * from './types.ts'
 export type { JailbreakStrategy, TvdHarness, TvdWorkspaceFile } from './strategies.ts'
-export { JAILBREAK_STRATEGIES, DEFAULT_JAILBREAK_STRATEGY, strategyById, defaultStrategy } from './strategies.ts'
+export { JAILBREAK_STRATEGIES, BUILTIN_STRATEGY_COUNT, DEFAULT_JAILBREAK_STRATEGY, strategyById, strategyMetadata, composeStrategies, defaultStrategy } from './strategies.ts'
 export { DEFAULT_TVD_SUBDIR, scaffoldTvdWorkspace, renderTvdSystem, workspaceRoot } from './tvd.ts'
 export type { TvdTemplateVars } from './tvd.ts'
 
@@ -51,7 +51,7 @@ declare module '@deepseek-ai/dsh-session/types' {
      * last `jailbreak/mode` wins; a log with none folds to inactive through
      * {@link foldJailbreakMode}.
      */
-    'jailbreak/mode': { active: boolean; strategy: string }
+    'jailbreak/mode': { active: boolean; strategy: string; strategyVersion?: string; strategySource?: 'builtin' | 'local' }
   }
 }
 
@@ -65,6 +65,8 @@ declare module '@deepseek-ai/cordis' {
 export interface JailbreakState {
   active: boolean
   strategy: string
+  strategyVersion?: string
+  strategySource?: 'builtin' | 'local'
 }
 
 /**
@@ -181,7 +183,12 @@ export function foldJailbreakMode(events: readonly SessionEvent[], end = events.
     if (index >= end) break
     index++
     if (event.type === 'jailbreak/mode') {
-      state = { active: event.data.active, strategy: event.data.strategy }
+      state = {
+        active: event.data.active,
+        strategy: event.data.strategy,
+        ...(event.data.strategyVersion === undefined ? {} : { strategyVersion: event.data.strategyVersion }),
+        ...(event.data.strategySource === undefined ? {} : { strategySource: event.data.strategySource }),
+      }
     }
   }
   return state
@@ -290,7 +297,13 @@ export class JailbreakModeController extends Service {
       ctx.on('agent/created', ({ agent }) => {
         if (hasLoggedMode(agent.session.events)) return
         try {
-          agent.session.append('jailbreak/mode', { active: true, strategy: this.defaultStrategy })
+          const selected = strategyById(this.defaultStrategy)
+          agent.session.append('jailbreak/mode', {
+            active: true,
+            strategy: this.defaultStrategy,
+            ...(selected?.version === undefined ? {} : { strategyVersion: selected.version }),
+            ...(selected?.source === undefined ? {} : { strategySource: selected.source }),
+          })
         } catch (error) {
           ctx.logger.warn('dsh-jailbreak-mode: failed to append default-active state for agent "%s": %o', agent.id, error)
         }
@@ -406,7 +419,7 @@ export class JailbreakModeController extends Service {
       commandCtx.commands.register({
         name: 'jailbreak',
         description: 'Enter or leave jailbreak mode, or switch strategy',
-        input: { hint: '[off|strategy]' },
+        input: { hint: '[off|strategy[+strategy...]]' },
         handler: ({ agent, rawInput }) => {
           const input = rawInput.trim()
           if (input === 'off') {
@@ -496,7 +509,13 @@ export class JailbreakModeController extends Service {
       return 'cancelled'
     }
     const narration = this.narration(session, active)
-    session.append('jailbreak/mode', { active, strategy })
+    const selected = strategyById(strategy)
+    session.append('jailbreak/mode', {
+      active,
+      strategy,
+      ...(selected?.version === undefined ? {} : { strategyVersion: selected.version }),
+      ...(selected?.source === undefined ? {} : { strategySource: selected.source }),
+    })
     this.pendingIntents.delete(session)
     if (narration !== undefined) agent.inject(narration)
     return 'committed'
@@ -515,7 +534,13 @@ export class JailbreakModeController extends Service {
       return
     }
     const narration = this.narration(session, pending.active)
-    session.append('jailbreak/mode', { active: pending.active, strategy: pending.strategy })
+    const selected = strategyById(pending.strategy)
+    session.append('jailbreak/mode', {
+      active: pending.active,
+      strategy: pending.strategy,
+      ...(selected?.version === undefined ? {} : { strategyVersion: selected.version }),
+      ...(selected?.source === undefined ? {} : { strategySource: selected.source }),
+    })
     // Delete only after append succeeds so a later accepted in-turn pre-step
     // can retry a failed durable write.
     this.pendingIntents.delete(session)
