@@ -10,7 +10,7 @@
  * from the session log alone (model-visible ⟺ logged). No extra session event
  * is needed.
  *
- * @module @deepseek-ai/dsh-jailbreak-mode/tvd
+ * @module @bainianling/dsh-jailbreak-mode/tvd
  */
 
 import { join } from 'node:path'

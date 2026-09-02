@@ -15,7 +15,7 @@
  * Agent Note:
  * - .agents/notes/implemented/feature/2026-08-14-jailbreak-mode.md
  *
- * @module @deepseek-ai/dsh-jailbreak-mode
+ * @module @bainianling/dsh-jailbreak-mode
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'

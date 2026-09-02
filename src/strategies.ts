@@ -15,7 +15,7 @@
  * They ship only so deployments can run reproducible safety evaluations;
  * disabling the plugin removes them entirely.
  *
- * @module @deepseek-ai/dsh-jailbreak-mode/strategies
+ * @module @bainianling/dsh-jailbreak-mode/strategies
  */
 
 /** One workspace file scaffolded for a TVD strategy. Path is relative to the workspace root. */

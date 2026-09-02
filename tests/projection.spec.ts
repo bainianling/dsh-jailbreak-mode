@@ -20,8 +20,8 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { CommandId } from '@deepseek-ai/dsh-commands/brand'
-import JailbreakModeController from '@deepseek-ai/dsh-jailbreak-mode'
-import { DEFAULT_JAILBREAK_STRATEGY } from '@deepseek-ai/dsh-jailbreak-mode'
+import JailbreakModeController from '@bainianling/dsh-jailbreak-mode'
+import { DEFAULT_JAILBREAK_STRATEGY } from '@bainianling/dsh-jailbreak-mode'
 
 interface Bench {
   ctx: Context

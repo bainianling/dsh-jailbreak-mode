@@ -1,10 +1,10 @@
-/** Package-owned durable jailbreak-mode invariants. @module @deepseek-ai/dsh-jailbreak-mode/invariant */
+/** Package-owned durable jailbreak-mode invariants. @module @bainianling/dsh-jailbreak-mode/invariant */
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type { InvariantFailure, InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-jailbreak-mode'
+const PACKAGE_NAME = '@bainianling/dsh-jailbreak-mode'
 
 /** Cordis companion plugin name. */
 export const name = 'jailbreak-mode-invariant'

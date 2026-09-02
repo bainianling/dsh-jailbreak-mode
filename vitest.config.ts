@@ -5,8 +5,8 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   resolve: {
     alias: {
-      '@deepseek-ai/dsh-jailbreak-mode': fileURLToPath(new URL('./src/index.ts', import.meta.url)),
-      '@deepseek-ai/dsh-jailbreak-mode/invariant': fileURLToPath(new URL('./src/invariant.ts', import.meta.url)),
+      '@bainianling/dsh-jailbreak-mode': fileURLToPath(new URL('./src/index.ts', import.meta.url)),
+      '@bainianling/dsh-jailbreak-mode/invariant': fileURLToPath(new URL('./src/invariant.ts', import.meta.url)),
     },
   },
   test: {

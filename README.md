@@ -3,11 +3,11 @@
 > **本仓库仅用于学习交流与授权的安全研究（红队评估 / LLM 安全测试）。**
 > 请阅读下方 [用途与免责声明](#用途与免责声明) 后再使用。
 
-将 DeepSeek Harness 的红队"破甲模式"打包成独立的可安装插件，并提供已构建好的发布产物（tarball）。
+一个独立、自研、可安装的 Cordis 插件：借鉴 DeepSeek Harness 的插件模式，把"破甲模式"（jailbreak mode）实现为对宿主 agent 会话的提示词改写。本仓库为学习交流与**获得授权的安全研究**提供源码与构建好的发布产物（tarball）。
 
 ## 这是什么
 
-`@deepseek-ai/dsh-jailbreak-mode` 是 DeepSeek Harness（基于 Cordis 的插件化 Agent harness）的官方插件之一。它在激活时会改写发送给模型的输入，用于**可复现的红队安全评估**：
+`@bainianling/dsh-jailbreak-mode` 是**个人开发**的、挂在 DeepSeek Harness（基于 Cordis 的插件化 Agent harness）`@deepseek-ai/dsh-*` 生态上的插件。它**不是 DeepSeek 官方插件**。它在激活时会改写发送给模型的输入，用于**可复现的红队安全评估**：
 
 - 向每个模型请求的**系统提示词**追加所选策略的指令块；
 - 每条被认领的用户消息在到达模型前用策略的 **前缀 / 后缀** 包装；
@@ -18,15 +18,15 @@
 
 ## 重要声明
 
-- 本插件继承自 DeepSeek Harness 官方仓库 `deepseek-ai/deepseek-harness`（MIT 许可证），原始代码与版权归原作者所有。
-- 本仓库仅整理、打包与说明，用于**学习交流**与**获得授权的安全研究**。
+- 本插件为个人自研，代码与版权归作者本人；它**依赖** DeepSeek Harness 生态中真实发布的 `@deepseek-ai/dsh-*` 核心包与 `@deepseek-ai/cordis`（均为第三方、由相应作者发布），但**不是 DeepSeek 官方插件**，也**不包含** `deepseek-ai/deepseek-harness` 官方仓库的任何代码。
+- 本仓库仅用于**学习交流**与**获得授权的安全研究**，不对接 DeepSeek 官方渠道。
 - 禁止将本插件用于任何未授权、违法或恶意用途，包括但不限于：攻击未授权系统、绕过生产环境审核、骚扰、诈骗等。
 - 使用者须自行遵守所在地法律法规，以及所接入模型服务提供方（DeepSeek、OpenAI 等）的服务条款与使用政策。
 - 作者不对本插件的任何使用后果承担责任；使用时请自担风险并仅在**自己拥有或有明确授权**的测试环境内评估。
 
 ## 隐私说明
 
-本仓库已剥离与原作者及本机环境相关的全部隐私内容：
+本仓库已剥离作者本人及本机环境相关的全部隐私内容：
 
 - 不包含任何 API 密钥、令牌、密码或凭据；
 - 不包含会话日志、运行日志、覆盖报告等运行时产物；
@@ -56,14 +56,14 @@ dsh-jailbreak-mode/
 ### 方式一：直接用发布产物（推荐）
 
 ```bash
-npm install ./dist/npm/deepseek-ai-dsh-jailbreak-mode-0.1.0-rc.10.tgz
+npm install ./dist/npm/bainianling-dsh-jailbreak-mode-0.1.0-rc.10.tgz
 ```
 
 在 harness 的 `cordis.yml` 中挂载该插件（示例见 `agent-presets/jailbreak` 预设的做法）：
 
 ```yaml
 - id: jailbreak-mode
-  name: '@deepseek-ai/dsh-jailbreak-mode'
+  name: '@bainianling/dsh-jailbreak-mode'
   config:
     defaultActive: true
     defaultStrategy: authorized-ctf
@@ -126,4 +126,4 @@ pnpm pack             # 从 lib/ 打包发布 tgz
 
 ## 许可证
 
-MIT © 原始版权归 DeepSeek Harness 作者；本仓库仅作整理与发布。
+MIT © 作者本人。依赖的 `@deepseek-ai/dsh-*` 与 `@deepseek-ai/cordis` 包版权归其各自作者，使用时请遵循其许可证。
