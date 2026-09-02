@@ -76,8 +76,8 @@ npm install ./dist/npm/deepseek-ai-dsh-jailbreak-mode-0.1.0-rc.10.tgz
 ```bash
 pnpm install          # 需在 deepseek-harness workspace 环境内安装依赖
 pnpm test             # 运行单元测试
-pnpm run build        # tsc 编译到 lib/types，tsdown 打包 lib/index.js
-pnpm pack             # 重新生成 dist/npm/*.tgz
+pnpm run build        # tsc 将 src 平铺编译到 lib/（.js + .d.ts）
+pnpm pack             # 从 lib/ 打包发布 tgz
 ```
 
 ## 内置策略

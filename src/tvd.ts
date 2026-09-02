@@ -15,7 +15,7 @@
 
 import { join } from 'node:path'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
-import type { JailbreakStrategy, TvdWorkspaceFile } from './strategies.ts'
+import type { JailbreakStrategy, TvdWorkspaceFile } from './strategies.js'
 
 /** Default workspace subdirectory under the session cwd. */
 export const DEFAULT_TVD_SUBDIR = 'tvd'

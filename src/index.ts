@@ -29,19 +29,19 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-commands'
 // Type-only: resolves ctx.sessionProjections for the optional unit child.
 import type {} from '@deepseek-ai/dsh-session-projection'
-import { DEFAULT_JAILBREAK_STRATEGY, JAILBREAK_STRATEGIES, strategyById } from './strategies.ts'
-import type { JailbreakStrategy } from './strategies.ts'
-import type { JailbreakProjection } from './types.ts'
-import { DEFAULT_TVD_SUBDIR, scaffoldTvdWorkspace, renderTvdSystem, workspaceRoot, type TvdTemplateVars } from './tvd.ts'
+import { DEFAULT_JAILBREAK_STRATEGY, JAILBREAK_STRATEGIES, strategyById } from './strategies.js'
+import type { JailbreakStrategy } from './strategies.js'
+import type { JailbreakProjection } from './types.js'
+import { DEFAULT_TVD_SUBDIR, scaffoldTvdWorkspace, renderTvdSystem, workspaceRoot, type TvdTemplateVars } from './tvd.js'
 // The `jailbreak` projection-key declaration lives in src/types.ts (its one home);
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the
 // declarations still receive the SessionProjectionMap merge.
-export type * from './types.ts'
-export type { JailbreakStrategy, TvdHarness, TvdWorkspaceFile } from './strategies.ts'
-export { JAILBREAK_STRATEGIES, DEFAULT_JAILBREAK_STRATEGY, strategyById, defaultStrategy } from './strategies.ts'
-export { DEFAULT_TVD_SUBDIR, scaffoldTvdWorkspace, renderTvdSystem, workspaceRoot } from './tvd.ts'
-export type { TvdTemplateVars } from './tvd.ts'
+export type * from './types.js'
+export type { JailbreakStrategy, TvdHarness, TvdWorkspaceFile } from './strategies.js'
+export { JAILBREAK_STRATEGIES, DEFAULT_JAILBREAK_STRATEGY, strategyById, defaultStrategy } from './strategies.js'
+export { DEFAULT_TVD_SUBDIR, scaffoldTvdWorkspace, renderTvdSystem, workspaceRoot } from './tvd.js'
+export type { TvdTemplateVars } from './tvd.js'
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {

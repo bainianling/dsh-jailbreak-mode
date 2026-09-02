@@ -10,33 +10,30 @@
     "url": "https://github.com/bainianling/dsh-jailbreak-mode.git"
   },
   "type": "module",
-  "main": "lib/index.js",
-  "types": "lib/types/index.d.ts",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
   "exports": {
     ".": {
-      "types": "./lib/types/index.d.ts",
+      "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
     "./invariant": {
-      "types": "./lib/types/invariant.d.ts",
+      "types": "./lib/invariant.d.ts",
       "default": "./lib/invariant.js"
     },
     "./types": {
-      "types": "./lib/types/types.d.ts",
-      "default": "./lib/types/types.js"
+      "types": "./lib/types.d.ts",
+      "default": "./lib/types.js"
     },
     "./client": {
-      "types": "./lib/types/client.d.ts",
-      "default": "./lib/types/client.js"
+      "types": "./lib/client.d.ts",
+      "default": "./lib/client.js"
     },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
-    "lib/index.js",
-    "lib/invariant.js",
-    "lib/types/**/*.js",
-    "lib/types/**/*.d.ts"
+    "lib"
   ],
   "license": "MIT",
   "peerDependencies": {
@@ -81,7 +78,9 @@
     "vitest": "^3.0.0"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepack": "npm run build"
   }
 }

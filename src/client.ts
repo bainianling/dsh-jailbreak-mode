@@ -7,4 +7,4 @@
  * @module @deepseek-ai/dsh-jailbreak-mode/client
  */
 
-export type * from './types.ts'
+export type * from './types.js'
