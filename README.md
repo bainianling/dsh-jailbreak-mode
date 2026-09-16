@@ -136,7 +136,7 @@ assets/
 - **路径与 cwd 无关**：绝对路径由插件自身模块位置推导，任何工作区下都相同；包内不含个人路径或环境信息。
 - **可重定位**：设置环境变量 `DSH_AIMY_SKILL_DIR` 指向别处的副本（例如本仓库 checkout）即可覆盖默认位置。
 - **不写回包内**：策略提示词明确要求产物写入会话工作目录，工具链目录只读。
-- **与上游保持可核对**：内置树与上游 commit `0c56eb1` 的 441 个 blob 逐字节一致（无 CRLF 改写），索引由该树生成，计数不手写。
+- **与上游保持可核对**：内置树与上游 commit `0c56eb1` 的 441 个 blob 逐字节一致（无 CRLF 改写），索引由该树生成，计数不手写。核对请在 Git 仓库内做：`npm pack` 会无条件排除 `.gitignore`，安装后的包内为 439 个文件（少的 2 个是 git 卫生文件，无运行期作用）。
 
 运行 CLI 前需在工具链根目录安装 `requirements.txt`（`requests` / `beautifulsoup4` / `PyJWT` / `cryptography`）；`playwright install chromium` 仅在 SPA 爬虫与浏览器级 XSS 验证时需要。
 

@@ -21,11 +21,15 @@
 - 不要在本目录内格式化、改行尾或转码——`.gitattributes` 已为 `assets/aimy-skill/**`
   关闭了 text/eol/encoding 转换，任何改动都会破坏一致性保证。
 - 升级上游时按 `STRATEGIES.md` 的「Re-vendoring」步骤整树替换，而不是逐文件补丁。
+- **一致性保证的范围是 Git 仓库，不是 npm 包。** `npm pack` 会无条件排除 `.gitignore`
+  （`.npmignore` 与在 `files` 中显式列出该路径均无法绕过），因此解包后的
+  `node_modules` 里是 439 个文件，少掉的两个是 git 卫生文件，无运行期作用。
+  核对请在**本仓库内**做，不要在解包目录做。
 
 ## 复核方法
 
 ```bash
-# 与上游同一 commit 的 blob 哈希逐一比对（预期 441 个全部一致）
+# 与上游同一 commit 的 blob 哈希逐一比对（在仓库内预期 441 个全部一致）
 git clone --depth 1 https://github.com/Prohao42/aimy-skill.git /tmp/aimy-skill
 git -C /tmp/aimy-skill ls-tree -r HEAD | while read mode type sha path; do
   local=$(git hash-object "assets/aimy-skill/$path")

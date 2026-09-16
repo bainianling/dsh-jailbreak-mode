@@ -8,11 +8,17 @@
 |----|----|
 | 分支 | `v1` |
 | 定位 | **渗透型破甲分支（Penetration-oriented jailbreak branch）** |
-| HEAD | `8b61ba5` — `feat(aimy): bundle the aimy-skill toolkit behind a new jailbreak strategy` |
 | 基线 | 从 `master`（`a73b34e`）切出 |
 | 版本 | `@bainianling/dsh-jailbreak-mode@0.1.0-rc.14` |
-| 变更规模 | 453 个文件，+119,207 / −12 |
+| 变更规模 | 454 个文件，+119,531 / −12 |
 | 上游 | <https://github.com/bainianling/dsh-jailbreak-mode/tree/v1> |
+
+分支上的两个提交（HEAD 以远端为准，见上方链接）：
+
+| commit | 内容 |
+|--------|------|
+| `8b61ba5` | `feat(aimy): bundle the aimy-skill toolkit behind a new jailbreak strategy` —— 内置工具链 + 新策略 |
+| `ddc182c` | `docs(v1): describe the branch as the penetration-oriented jailbreak line` —— 本文与 README 横幅 |
 
 ## 一句话定位
 
@@ -122,12 +128,20 @@ harness）上的**独立第三方**插件。它不改动宿主代码，只在**�
 | 许可证 | MIT（副本见 `assets/aimy-skill/ai-mian/hack-skills/LICENSE`） |
 | 内置位置 | `assets/aimy-skill/` |
 | 内置规模 | **441 个文件、5.87 MB、逐字节副本**（不含 `.git`） |
-| 一致性 | 441/441 个 blob 与上游 `git ls-tree -r HEAD` 的 SHA 完全一致 |
+| 一致性 | 441/441 个 blob 与上游 `git ls-tree -r HEAD` 的 SHA 完全一致（在 Git 仓库内核对；见下方"已知差异"） |
 
 - 上游树**原样打包分发**，本插件未修改其任何文件。
 - `.gitattributes` 对 `assets/aimy-skill/**` 关闭了 `text` / `eol` / `working-tree-encoding`
   转换——否则 Windows 上的 `core.autocrlf` 会把 426 个文件改写成 CRLF，一致性保证随即失效。
 - 重新内置（升级上游）的步骤见 `STRATEGIES.md` 的 "Re-vendoring" 一节。
+
+> **已知差异：npm 包内为 439 个文件，比 Git 仓库少 2 个。**
+> `npm pack` 会**无条件排除** `.gitignore`（实测 `.npmignore` 写 `!.gitignore` 与在 `files`
+> 中显式列出该路径**均无效**，pack 后条目数仍为 0）。受影响的只有
+> `assets/aimy-skill/.gitignore` 与 `assets/aimy-skill/ai-mian/hack-skills/.gitignore`
+> 这两个 git 卫生文件——它们在安装后的 `node_modules` 里没有任何运行期作用。
+> 其余 439 个文件（CLI、136 个工具模块、102 篇 SKILL.md、payload 种子、文档、测试）全部完整入包。
+> 因此：**"441 个 blob 与上游一致"这一保证的范围是 Git 仓库**；核对请在仓库内做，不要在解包目录做。
 
 ### 2.2 三块内容
 
@@ -281,7 +295,7 @@ python main.py --help
 
 ```
 master (a73b34e)
-   └── v1 (8b61ba5)  ← 本分支
+   └── v1  ← 本分支（两个提交：内置工具链 + 分支文档）
 ```
 
 | 变更 | 内容 |
