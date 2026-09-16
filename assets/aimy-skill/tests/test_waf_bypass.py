@@ -1,0 +1,128 @@
+import responses
+
+from tools.waf_bypass import (
+    ENCODER_CHAINS,
+    check,
+    fingerprint_waf,
+    generate_sqli_payloads,
+)
+
+
+class TestFingerprintWaf:
+    @responses.activate
+    def test_cloudflare_detected(self):
+        responses.add(
+            responses.GET, 'http://test.com/page',
+            body='Attention Required! | Cloudflare', status=403,
+            headers={'cf-ray': 'abc123', 'server': 'cloudflare'},
+        )
+        result = fingerprint_waf('http://test.com/page')
+        assert result is not None
+        assert 'cloudflare' in result['name'].lower()
+
+    @responses.activate
+    def test_aws_waf_detected(self):
+        responses.add(
+            responses.GET, 'http://test.com/page',
+            body='Request blocked by AWS WAF', status=403,
+        )
+        result = fingerprint_waf('http://test.com/page')
+        assert result is not None
+
+    @responses.activate
+    def test_no_waf(self):
+        responses.add(
+            responses.GET, 'http://test.com/page',
+            body='normal page', status=200,
+        )
+        result = fingerprint_waf('http://test.com/page')
+        assert result['detected'] is False
+
+
+class TestGenerateSqliPayloads:
+    def test_returns_payloads(self):
+        payloads = generate_sqli_payloads("1' OR '1'='1", waf_name=None)
+        assert len(payloads) > 0
+        assert all(isinstance(p, dict) for p in payloads)
+        assert all("payload" in p for p in payloads)
+
+    def test_waf_aware(self):
+        payloads = generate_sqli_payloads("1' OR '1'='1", waf_name='cloudflare')
+        assert len(payloads) > 0
+
+
+class TestEncoderChains:
+    def test_chains_defined(self):
+        assert len(ENCODER_CHAINS) > 0
+        for chain in ENCODER_CHAINS:
+            assert len(chain) > 0
+
+
+class TestNewEncoders:
+    def test_versioned_comment(self):
+        from tools.waf_bypass import BypassEncoder
+        out = BypassEncoder.versioned_comment("' UNION SELECT NULL-- ")
+        assert "/*!50000SELECT*/" in out
+        assert "/*!50000UNION*/" in out
+
+    def test_redundant_url_encode(self):
+        from tools.waf_bypass import BypassEncoder
+        out = BypassEncoder.redundant_url_encode("' OR '1'='1")
+        assert "%2527" in out
+
+    def test_new_chains_present(self):
+        import tools.waf_bypass as wb
+        names = []
+        for chain in wb.ENCODER_CHAINS:
+            names.append(" ".join(f.__name__ for f in chain))
+        assert any("versioned_comment" in n for n in names)
+        assert any("redundant_url_encode" in n for n in names)
+
+
+
+class TestWafBlock:
+    def test_cloudflare_block_headers(self):
+        from tools.waf_bypass import classify_block
+        class R:
+            status_code = 403
+            headers = {"cf-ray": "abc", "server": "cloudflare"}
+            text = "Sorry, you have been blocked"
+        assert classify_block(R()) == "cloudflare"
+
+    def test_safedog_text(self):
+        from tools.waf_bypass import classify_block
+        class R:
+            status_code = 403
+            headers = {}
+            text = "访问被拦截，安全狗提示"
+        assert classify_block(R()) == "safedog"
+
+    def test_is_blocked_status(self):
+        from tools.waf_bypass import is_blocked
+        class R:
+            status_code = 403
+            headers = {}
+            text = "normal"
+        assert is_blocked(R())
+
+    def test_not_blocked(self):
+        from tools.waf_bypass import is_blocked
+        class R:
+            status_code = 200
+            headers = {}
+            text = "normal page"
+        assert not is_blocked(R())
+
+
+class TestCheck:
+    @responses.activate
+    def test_basic_request(self):
+        responses.add(
+            responses.GET, re.compile(r'http://test\.com/page\?.*'),
+            body='ok', status=200,
+        )
+        result = check('http://test.com/page', 'id')
+        assert result is not None
+
+
+import re

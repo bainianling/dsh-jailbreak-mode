@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import CommandRuntime from '@deepseek-ai/dsh-commands'
@@ -7,7 +7,7 @@ import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { Session, SessionId, type UserMessage } from '@deepseek-ai/dsh-session'
 import AgentRegistry, { agentEvents, type Agent } from '@deepseek-ai/dsh-agent'
 import { createScope } from '@deepseek-ai/dsh-scope'
-import JailbreakModeController, { foldJailbreakActive, foldJailbreakMode, resolveConfig, resolveStrategy, type JailbreakModeConfig } from '../src/index.ts'
+import JailbreakModeController, { foldJailbreakActive, foldJailbreakMode, resolveAimySkillPaths, resolveConfig, resolveStrategy, type JailbreakModeConfig } from '../src/index.ts'
 import { composeStrategies, defaultStrategy, JAILBREAK_STRATEGIES, strategyById, strategyMetadata } from '../src/strategies.ts'
 
 /**
@@ -295,6 +295,20 @@ describe('jailbreak-mode integration', () => {
 
   it('resolveConfig rejects an unknown defaultStrategy', () => {
     expect(() => resolveConfig({ defaultStrategy: 'nope' })).toThrow(/unknown jailbreak defaultStrategy "nope"/)
+  })
+
+  it('the aimy-skill strategy renders the bundle location into the policy section', async () => {
+    const ctx = await setup({ defaultActive: true, defaultStrategy: 'aimy-skill' })
+    const agent = await agentWithSession(ctx, 'agent-aimy')
+    const assembly = await assembleFor(ctx, agent)
+    const policy = assembly.sections.find(section => section.name === 'jailbreak:policy')?.text ?? ''
+    const paths = resolveAimySkillPaths({})
+    // The bundle path is install-relative, so it renders for any session cwd.
+    expect(policy).toContain(`Bundled toolkit root: ${paths.root}`)
+    expect(policy).toContain(`Generated index: ${paths.index}`)
+    // A bundle strategy wraps no messages: it is a resource, not an injection.
+    const messages = await preStep(ctx, agent)
+    expect(messages.map(message => message.content)).toEqual([[{ type: 'text', text: 'the real request' }]])
   })
 
   it('resolveConfig rejects unknown keys', () => {

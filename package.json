@@ -1,7 +1,7 @@
 {
   "name": "@bainianling/dsh-jailbreak-mode",
-  "description": "Logged per-agent jailbreak mode: automatic prompt-injection prefix for red-team safety evaluation",
-  "version": "0.1.0-rc.13",
+  "description": "Logged per-agent jailbreak mode: automatic prompt-injection prefix for red-team safety evaluation, with the bundled aimy-skill pentest toolkit",
+  "version": "0.1.0-rc.14",
   "publishConfig": {
     "access": "public"
   },
@@ -29,11 +29,16 @@
       "types": "./lib/client.d.ts",
       "default": "./lib/client.js"
     },
+    "./aimy": {
+      "types": "./lib/aimy.d.ts",
+      "default": "./lib/aimy.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
-    "lib"
+    "lib",
+    "assets"
   ],
   "license": "MIT",
   "peerDependencies": {

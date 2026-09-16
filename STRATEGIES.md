@@ -9,3 +9,37 @@ Strategies can be composed with `composeStrategies(['evaluator', 'reverse-engine
 The `reverse-engineering` profile requires intake, static mapping, decompilation, data-flow tracing, one runtime check, and a report with Findings, Evidence, Reproduction, Change, Verification, and Rollback sections. Conclusions use `VERIFIED`, `CANDIDATE`, or `UNRESOLVED` labels.
 
 Strategy selections are logged with optional `strategyVersion` and `strategySource` fields so replay and audit tools can identify the template revision used at the time.
+
+## Two resource-backed strategies
+
+Two strategies carry something other than prompt text alone. Both render their
+resource into the `jailbreak:policy` system block and leave user messages
+untouched, so neither changes the request shape beyond that section.
+
+| Strategy | Carrier | Rendered by | Resource |
+| --- | --- | --- | --- |
+| `tvd-guard` | `strategy.tvd` | `renderTvdSystem` (`src/tvd.ts`) | Skeleton files scaffolded into the session workspace; the validator really runs |
+| `aimy-skill` | `strategy.aimy` | `renderAimySkillSystem` (`src/aimy.ts`) | The aimy-skill toolkit vendored in `assets/aimy-skill/`; the model reads and runs it in place |
+
+`aimy-skill` resolves its bundle from the plugin's own module URL, so the
+rendered absolute path is install-relative and identical in every workspace.
+`DSH_AIMY_SKILL_DIR` relocates the bundle (a checkout, or an unpacked copy).
+The strategy's `category` is `security-toolkit`, and the exported
+`AIMY_SKILL_SKILL_COUNT` / `AIMY_SKILL_TOOL_COUNT` / `AIMY_SKILL_COMMAND_COUNT`
+constants are asserted against the generated `assets/aimy-skill-index.md`, which
+is the one place those numbers come from.
+
+Re-vendoring after an upstream release:
+
+```bash
+git clone --depth 1 https://github.com/Prohao42/aimy-skill.git /tmp/aimy-skill
+git -C /tmp/aimy-skill -c core.autocrlf=false archive --format=tar HEAD -o /tmp/aimy.tar
+rm -rf assets/aimy-skill && mkdir -p assets/aimy-skill
+tar -xf /tmp/aimy.tar -C assets/aimy-skill
+# Regenerate assets/aimy-skill-index.md from the new tree, then update the
+# AIMY_SKILL_* constants and the strategy's `aimy` descriptor to match.
+```
+
+`-c core.autocrlf=false` is load-bearing on Windows: without it `git archive`
+writes CRLF into the extracted files and the tree is no longer byte-identical to
+the upstream blobs.

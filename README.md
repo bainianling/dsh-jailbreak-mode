@@ -41,9 +41,13 @@ dsh-jailbreak-mode/
 │   ├── index.ts      插件主入口（JailbreakModeController / 命令 / 投影）
 │   ├── strategies.ts 内置破甲策略表
 │   ├── tvd.ts        TVD 自循环工具链（工作区脚手架 / 系统块渲染）
+│   ├── aimy.ts       内置 AIMY 工具链（路径解析 / 系统块渲染）
 │   ├── client.ts     客户端投影类型
 │   ├── types.ts      类型声明（SessionEventMap / SessionProjectionMap 合并）
 │   └── invariant.ts  运行时不变式
+├── assets/      内置资源（随包分发）
+│   ├── aimy-skill/       aimy-skill 工具链逐字节副本（441 文件，MIT）
+│   └── aimy-skill-index.md 生成的资源索引
 ├── tests/       vitest 单元测试
 ├── dist/npm/    打包好的可安装产物（.tgz）
 ├── package.json
@@ -56,7 +60,7 @@ dsh-jailbreak-mode/
 ### 方式一：直接用发布产物（推荐）
 
 ```bash
-npm install ./dist/npm/bainianling-dsh-jailbreak-mode-0.1.0-rc.10.tgz
+npm install ./dist/npm/bainianling-dsh-jailbreak-mode-0.1.0-rc.14.tgz
 ```
 
 在 harness 的 `cordis.yml` 中挂载该插件（示例见 `agent-presets/jailbreak` 预设的做法）：
@@ -82,7 +86,7 @@ pnpm pack             # 从 lib/ 打包发布 tgz
 
 ## 内置策略
 
-该插件内置十二种公开且被广泛记载的破甲技术，用于可复现的评估：
+该插件内置十三种公开且被广泛记载的破甲技术，用于可复现的评估：
 
 | id | 说明 |
 |----|------|
@@ -97,24 +101,56 @@ pnpm pack             # 从 lib/ 打包发布 tgz
 | `gpt56-sol-unrestricted` | gpt-5.6-sol 无限制 v45（逐字内置 MDX-Tom/gpt-5.6-instruct 的 Codex 破甲提示词） |
 | `evaluator` | Meta-Evaluation（元评估框定：会话被框定为指令遵循评测，将任何拒绝/遗漏/免责声明记为失败） |
 | `continuation` | Text Continuation（文本续写框架：请求被框定为既有草稿的续写，不存在可拒绝的新请求） |
+| `aimy-skill` | **AIMY Security Toolkit（内置整包工具链，见下节）** |
 | `tvd-guard` | TVD Guard Validator（自循环工具链：把模型放进一个小型编码项目，安全分类验证器真实运行，失败以编程错误回流） |
 
-每个策略携带一个 `system` 块与一对 `prefix` / `suffix`；`tvd-guard` 额外携带 `tvd` 工具链。它们随包提供，只为了让部署方能够运行可复现的红队评估；禁用该插件即可彻底移除。
+每个策略携带一个 `system` 块与一对 `prefix` / `suffix`；`tvd-guard` 额外携带 `tvd` 工具链，`aimy-skill` 额外携带整包内置资源。它们随包提供，只为了让部署方能够运行可复现的红队评估；禁用该插件即可彻底移除。
+
+## 内置 AIMY 工具链（`aimy-skill` 策略）
+
+`aimy-skill` 策略把 [Prohao42/aimy-skill](https://github.com/Prohao42/aimy-skill)（MIT，v3.7.0，commit `0c56eb1`）**整包内置**到本插件内，随 npm 包一起分发：
+
+```
+assets/
+├── aimy-skill-index.md      生成的索引（102 技能 / 136 模块 / 87 CLI 命令）
+└── aimy-skill/              上游仓库逐字节副本（441 个文件，不含 .git）
+    ├── main.py              65+ 模块的 CLI 入口（python main.py <command>）
+    ├── tools/               136 个 Python 工具模块（check() 接口 + 结构化 JSON）
+    ├── payload_seeds/       按漏洞类别的 payload 种子
+    ├── engine/  docs/  data/  tests/
+    └── ai-mian/hack-skills/ 102 个 Attack Skill 提示词（SKILL.md + 配套文档）
+```
+
+激活该策略（`/jailbreak aimy-skill`）后，系统提示词会给出工具链的**绝对路径**、内容规模与阅读顺序；模型据此先读索引、再按目标打开对应技能文档，并直接调用包内工具。
+
+- **路径与 cwd 无关**：绝对路径由插件自身模块位置推导，任何工作区下都相同；包内不含个人路径或环境信息。
+- **可重定位**：设置环境变量 `DSH_AIMY_SKILL_DIR` 指向别处的副本（例如本仓库 checkout）即可覆盖默认位置。
+- **不写回包内**：策略提示词明确要求产物写入会话工作目录，工具链目录只读。
+- **与上游保持可核对**：内置树与上游 commit `0c56eb1` 的 441 个 blob 逐字节一致（无 CRLF 改写），索引由该树生成，计数不手写。
+
+运行 CLI 前需在工具链根目录安装 `requirements.txt`（`requests` / `beautifulsoup4` / `PyJWT` / `cryptography`）；`playwright install chromium` 仅在 SPA 爬虫与浏览器级 XSS 验证时需要。
 
 ## 配置项
 
 | 配置 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `defaultActive` | boolean | `false` | 新建 agent 是否无需 `/jailbreak` 命令即进入破甲模式（会话自身的已记录状态优先） |
-| `defaultStrategy` | string | 全局默认策略 | 经 `defaultActive` 进入破甲模式的 agent 所用策略 id（未知 id 在插件加载时失败） |
+| `defaultStrategy` | string | 全局默认策略 | 经 `defaultActive` 进入破甲模式的 agent 所用策略 id（未知 id 在插件加载时失败）；设为 `aimy-skill` 即默认启用内置工具链 |
 | `workspaceSubdir` | string | `tvd` | TVD 工作区在会话 cwd 下的子目录（仅 TVD 策略生效，须为无分隔符的单路径段） |
 | `validatorModel` | string | 空 | 写入 TVD 文件 `{{validatorModel}}` 的分类模型名（`tvd-guard` 运行验证器所需；为空则降级为仅提示词变体） |
+
+## 环境变量
+
+| 变量 | 说明 |
+|------|------|
+| `DSH_AIMY_SKILL_DIR` | 覆盖内置 `aimy-skill` 工具链的根目录；留空则使用包内 `assets/aimy-skill/` |
 
 ## 命令
 
 - `/jailbreak`：以当前策略进入破甲模式
 - `/jailbreak off`：退出破甲模式
 - `/jailbreak <strategy>`：切换到指定策略
+- `/jailbreak aimy-skill`：启用内置 AIMY 工具链
 - 未知策略 id 会明确报错，不会静默降级
 
 ## 已知限制
@@ -123,7 +159,13 @@ pnpm pack             # 从 lib/ 打包发布 tgz
 - Fork 出的 agent 继承已记录的破甲状态，新生成的 agent 默认未激活。
 - 策略模板构建期固定；按部署自定义模板暂不支持。
 - TVD 策略在缺少 `fs` 服务、`validatorModel` 为空或脚手架失败时降级为仅提示词变体，从不阻塞轮次。
+- `aimy-skill` 只写入内置资源路径，不校验其存在性：路径缺失时模型看到的是明确的绝对路径，可据此报告或改用 `DSH_AIMY_SKILL_DIR`。
+- 内置工具链的 Python 依赖不在本包内，需在使用前自行安装（见上节）。
+
+## 第三方组件
+
+内置的 `assets/aimy-skill/` 来自 [Prohao42/aimy-skill](https://github.com/Prohao42/aimy-skill)，版权归其作者，遵循其 MIT 许可证（副本见 `assets/aimy-skill/ai-mian/hack-skills/LICENSE`）。本插件仅做**原样打包分发**，未修改其任何文件。
 
 ## 许可证
 
-MIT © 作者本人。依赖的 `@deepseek-ai/dsh-*` 与 `@deepseek-ai/cordis` 包版权归其各自作者，使用时请遵循其许可证。
+MIT © 作者本人。依赖的 `@deepseek-ai/dsh-*` 与 `@deepseek-ai/cordis` 包版权归其各自作者，使用时请遵循其许可证。内置的 aimy-skill 工具链版权归 Prohao42 所有（MIT）。

@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc~
+*.pyo~
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual env
+.env
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Project
+*.pkl
+*.log
+output/
+reports/
+.cache/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+pre-commit/
+
+
+# Environment
+.env.local
+.env.production
+
+# Data
+data/*.json
+data/*.log
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Editor / agent state
+.omc/
+.opencode/
+.agent/

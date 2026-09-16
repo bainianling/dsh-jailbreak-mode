@@ -10,3 +10,9 @@ LICENSE     text working-tree-encoding=UTF-8 eol=lf
 
 *.tgz       binary
 *.png       binary
+
+# The vendored aimy-skill toolkit is stored byte-identical to upstream, so the
+# rules above MUST NOT rewrite it: any eol or encoding conversion would change
+# the content hashes and break the "matches Prohao42/aimy-skill@<commit>"
+# guarantee that `tests/aimy.spec.ts` and the re-vendoring procedure rely on.
+assets/aimy-skill/**  -text -working-tree-encoding

@@ -33,15 +33,25 @@ import { DEFAULT_JAILBREAK_STRATEGY, JAILBREAK_STRATEGIES, strategyById } from '
 import type { JailbreakStrategy } from './strategies.js'
 import type { JailbreakProjection } from './types.js'
 import { DEFAULT_TVD_SUBDIR, scaffoldTvdWorkspace, renderTvdSystem, workspaceRoot, type TvdTemplateVars } from './tvd.js'
+import { resolveAimySkillPaths, renderAimySkillSystem, type AimySkillPaths } from './aimy.js'
 // The `jailbreak` projection-key declaration lives in src/types.ts (its one home);
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the
 // declarations still receive the SessionProjectionMap merge.
 export type * from './types.js'
-export type { JailbreakStrategy, TvdHarness, TvdWorkspaceFile } from './strategies.js'
+export type { JailbreakStrategy, TvdHarness, TvdWorkspaceFile, AimySkillBundle } from './strategies.js'
 export { JAILBREAK_STRATEGIES, BUILTIN_STRATEGY_COUNT, DEFAULT_JAILBREAK_STRATEGY, strategyById, strategyMetadata, composeStrategies, defaultStrategy } from './strategies.js'
 export { DEFAULT_TVD_SUBDIR, scaffoldTvdWorkspace, renderTvdSystem, workspaceRoot } from './tvd.js'
 export type { TvdTemplateVars } from './tvd.js'
+export {
+  AIMY_SKILL_DIR,
+  AIMY_SKILL_DIR_ENV,
+  AIMY_SKILL_INDEX,
+  AIMY_SKILL_UPSTREAM,
+  resolveAimySkillPaths,
+  renderAimySkillSystem,
+} from './aimy.js'
+export type { AimySkillPaths } from './aimy.js'
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
@@ -266,6 +276,12 @@ export class JailbreakModeController extends Service {
   /** Template variables substituted into scaffolded TVD files. */
   private readonly tvdVars: TvdTemplateVars
 
+  /**
+   * Absolute location of the bundled aimy-skill toolkit, resolved once at load
+   * so every session sees the same install-relative path.
+   */
+  private readonly aimyPaths: AimySkillPaths
+
   /** Workspaces already scaffolded per session, so pre-step re-entry does not rewrite them. */
   private readonly scaffolded = new WeakSet<Session>()
 
@@ -281,6 +297,7 @@ export class JailbreakModeController extends Service {
     this.defaultStrategy = resolved.defaultStrategy ?? DEFAULT_JAILBREAK_STRATEGY
     this.workspaceSubdir = resolved.workspaceSubdir
     this.tvdVars = { validatorModel: resolved.validatorModel ?? '' }
+    this.aimyPaths = resolveAimySkillPaths()
     // A deployment-owned "this preset is a jailbreak harness" flag: agents
     // created under this composition start active UNLESS their log already
     // carries a `jailbreak/mode` record (resume/refork keeps the logged value;
@@ -352,6 +369,9 @@ export class JailbreakModeController extends Service {
             strategy.id,
           )
           return renderTvdSystem(strategy, root)
+        }
+        if (strategy.aimy !== undefined) {
+          return renderAimySkillSystem(strategy, this.aimyPaths)
         }
         return strategy.system
       },
