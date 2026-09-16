@@ -3,6 +3,11 @@
 > **本仓库仅用于学习交流与授权的安全研究（红队评估 / LLM 安全测试）。**
 > 请阅读下方 [用途与免责声明](#用途与免责声明) 后再使用。
 
+> **当前分支 `v1`：渗透型破甲分支。**
+> 在通用破甲框架之上，整包内置 aimy-skill v3.7.0 渗透测试工具链（102 篇攻击技能提示词 +
+> 136 个 Python 工具模块 + 87 条 CLI 命令），并新增对应策略 `aimy-skill`。
+> 完整的破甲机制与 skill 细节见 **[`BRANCH-V1.md`](BRANCH-V1.md)**。
+
 一个独立、自研、可安装的 Cordis 插件：借鉴 DeepSeek Harness 的插件模式，把"破甲模式"（jailbreak mode）实现为对宿主 agent 会话的提示词改写。本仓库为学习交流与**获得授权的安全研究**提供源码与构建好的发布产物（tarball）。
 
 ## 这是什么
@@ -50,6 +55,8 @@ dsh-jailbreak-mode/
 │   └── aimy-skill-index.md 生成的资源索引
 ├── tests/       vitest 单元测试
 ├── dist/npm/    打包好的可安装产物（.tgz）
+├── BRANCH-V1.md 分支 `v1` 说明：渗透型破甲分支（破甲机制 + skill 细节全表）
+├── STRATEGIES.md 策略参考（类别 / 风险 / 标签 / 组合 / 重新内置步骤）
 ├── package.json
 ├── tsconfig.json
 └── LICENSE      MIT
@@ -86,7 +93,7 @@ pnpm pack             # 从 lib/ 打包发布 tgz
 
 ## 内置策略
 
-该插件内置十三种公开且被广泛记载的破甲技术，用于可复现的评估：
+该插件内置十四种公开且被广泛记载的破甲技术，用于可复现的评估（`BUILTIN_STRATEGY_COUNT` 由策略表长度导出，请勿在文案中硬编码）：
 
 | id | 说明 |
 |----|------|
@@ -101,8 +108,11 @@ pnpm pack             # 从 lib/ 打包发布 tgz
 | `gpt56-sol-unrestricted` | gpt-5.6-sol 无限制 v45（逐字内置 MDX-Tom/gpt-5.6-instruct 的 Codex 破甲提示词） |
 | `evaluator` | Meta-Evaluation（元评估框定：会话被框定为指令遵循评测，将任何拒绝/遗漏/免责声明记为失败） |
 | `continuation` | Text Continuation（文本续写框架：请求被框定为既有草稿的续写，不存在可拒绝的新请求） |
+| `reverse-engineering` | 逆向工程框定（六阶段：intake → static-map → decompile → data-flow → runtime-check → report；结论标 `VERIFIED`/`CANDIDATE`/`UNRESOLVED`） |
 | `aimy-skill` | **AIMY Security Toolkit（内置整包工具链，见下节）** |
 | `tvd-guard` | TVD Guard Validator（自循环工具链：把模型放进一个小型编码项目，安全分类验证器真实运行，失败以编程错误回流） |
+
+完整策略参考（类别 / 风险级别 / 标签 / 组合方式）见 [`STRATEGIES.md`](STRATEGIES.md)。
 
 每个策略携带一个 `system` 块与一对 `prefix` / `suffix`；`tvd-guard` 额外携带 `tvd` 工具链，`aimy-skill` 额外携带整包内置资源。它们随包提供，只为了让部署方能够运行可复现的红队评估；禁用该插件即可彻底移除。
 
