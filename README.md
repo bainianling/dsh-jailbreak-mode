@@ -6,6 +6,7 @@
 > **当前分支 `v1`：渗透型破甲分支。**
 > 在通用破甲框架之上，整包内置 aimy-skill v3.7.0 渗透测试工具链（102 篇攻击技能提示词 +
 > 136 个 Python 工具模块 + 87 条 CLI 命令），并新增对应策略 `aimy-skill`。
+> **该策略会按请求自动匹配并加载对应技能文档**（见下方 [自动调用技能](#自动调用技能)）。
 > 完整的破甲机制与 skill 细节见 **[`BRANCH-V1.md`](BRANCH-V1.md)**。
 
 一个独立、自研、可安装的 Cordis 插件：借鉴 DeepSeek Harness 的插件模式，把"破甲模式"（jailbreak mode）实现为对宿主 agent 会话的提示词改写。本仓库为学习交流与**获得授权的安全研究**提供源码与构建好的发布产物（tarball）。
@@ -43,16 +44,21 @@
 ```
 dsh-jailbreak-mode/
 ├── src/         插件源码（TypeScript）
-│   ├── index.ts      插件主入口（JailbreakModeController / 命令 / 投影）
+│   ├── index.ts      插件主入口（JailbreakModeController / 命令 / 投影 / 自动调用）
 │   ├── strategies.ts 内置破甲策略表
 │   ├── tvd.ts        TVD 自循环工具链（工作区脚手架 / 系统块渲染）
 │   ├── aimy.ts       内置 AIMY 工具链（路径解析 / 系统块渲染）
+│   ├── aimy-triggers.ts 自动调用：触发词索引 / 匹配打分 / 注入渲染
+│   ├── aimy-tool.ts  aimy_skill 工具（list / search / load）
 │   ├── client.ts     客户端投影类型
 │   ├── types.ts      类型声明（SessionEventMap / SessionProjectionMap 合并）
 │   └── invariant.ts  运行时不变式
+├── scripts/     构建期脚本
+│   └── generate-aimy-triggers.mjs 从 SKILL.md 生成触发词索引
 ├── assets/      内置资源（随包分发）
 │   ├── aimy-skill/       aimy-skill 工具链逐字节副本（441 文件，MIT）
-│   └── aimy-skill-index.md 生成的资源索引
+│   ├── aimy-skill-index.md 生成的资源索引
+│   └── aimy-skill-triggers.json 生成的触发词索引（102 技能 / 877 触发词）
 ├── tests/       vitest 单元测试
 ├── dist/npm/    打包好的可安装产物（.tgz）
 ├── BRANCH-V1.md 分支 `v1` 说明：渗透型破甲分支（破甲机制 + skill 细节全表）
@@ -62,12 +68,47 @@ dsh-jailbreak-mode/
 └── LICENSE      MIT
 ```
 
+## 自动调用技能
+
+`aimy-skill` 策略**不只是把工具链位置写进系统提示词**，而是按当前请求确定性地加载对应技能文档。
+
+**工作链路**（全部发生在 `agent/pre-step`，即每一步请求组装时）：
+
+1. **生成索引**：`scripts/generate-aimy-triggers.mjs` 扫描 102 个
+   `SKILL.md`，从 frontmatter、`categories.yaml`、同目录伴随文档派生出
+   `assets/aimy-skill-triggers.json`（877 个触发词）。技能名、分类、描述全部来自磁盘，
+   重新内置工具链不会让索引与实际内容脱节。
+2. **两级触发词**：`strong`（技能全名 + 手写中英别名，如 `sqli` / `sql注入` / `linux提权`）
+   权重 3，单条命中即可路由；`weak`（技能名单词，如 `cross`、`site`）权重 1，必须累积到
+   阈值 3。因此 `type` 不会在 `prototype` 里误命中，`injection` 单独也不会路由。
+3. **匹配**：只读取本步**用户自己**的文本（注入内容与工具结果不参与，避免链式级联），
+   按词边界 + 常见英文词形变化匹配，打分排序取前 N（默认 2）。
+4. **注入**：命中的 `SKILL.md` 正文被包裹为 `<aimy-skill name="..." category="..." selected="...">`
+   并作为 `instructions` 上下文追加在消息列表**最后**，最靠近模型作答位置；同时给出绝对路径与
+   伴随文档名。来源标记为 `aimy-skill`，写入会话日志。
+5. **去重**：会话日志里已出现过的技能不再注入，长对话不会反复塞同一篇文档。
+
+**显式调用**：另注册 `aimy_skill` 工具，模型可 `list`（按分类浏览全部 102 篇）、
+`search`（用同一套触发词排序）、`load`（按精确名字读全文），无需猜路径。
+该工具**只读**：不运行工具链里的 Python，不写任何文件。
+
+**配置**：
+
+| 配置项 | 默认 | 说明 |
+|--------|------|------|
+| `aimyAutoSkills` | `true` | 是否按请求自动加载匹配的技能文档；关闭后退回纯提示词模式 |
+| `aimyAutoSkillLimit` | `2` | 每步最多自动加载几篇（每篇最大约 31 KB） |
+| `DSH_AIMY_SKILL_DIR` | 未设置 | 环境变量，把内置工具链重定位到 checkout 或解包副本 |
+
+自动调用**只影响"把哪篇技能文档放进上下文"**，不改变工具链本身的权限：包内 Python 工具仍由
+模型显式调用，仍然只应对授权目标使用。
+
 ## 安装使用
 
 ### 方式一：直接用发布产物（推荐）
 
 ```bash
-npm install ./dist/npm/bainianling-dsh-jailbreak-mode-0.1.0-rc.14.tgz
+npm install ./dist/npm/bainianling-dsh-jailbreak-mode-0.1.0-rc.15.tgz
 ```
 
 在 harness 的 `cordis.yml` 中挂载该插件（示例见 `agent-presets/jailbreak` 预设的做法）：
@@ -123,6 +164,7 @@ pnpm pack             # 从 lib/ 打包发布 tgz
 ```
 assets/
 ├── aimy-skill-index.md      生成的索引（102 技能 / 136 模块 / 87 CLI 命令）
+├── aimy-skill-triggers.json 生成的触发词索引（877 词，自动调用用）
 └── aimy-skill/              上游仓库逐字节副本（441 个文件，不含 .git）
     ├── main.py              65+ 模块的 CLI 入口（python main.py <command>）
     ├── tools/               136 个 Python 工具模块（check() 接口 + 结构化 JSON）
@@ -131,7 +173,7 @@ assets/
     └── ai-mian/hack-skills/ 102 个 Attack Skill 提示词（SKILL.md + 配套文档）
 ```
 
-激活该策略（`/jailbreak aimy-skill`）后，系统提示词会给出工具链的**绝对路径**、内容规模与阅读顺序；模型据此先读索引、再按目标打开对应技能文档，并直接调用包内工具。
+激活该策略（`/jailbreak aimy-skill`）后，系统提示词会给出工具链的**绝对路径**、内容规模与阅读顺序；**并且按当前请求自动匹配、加载对应技能文档**（见 [自动调用技能](#自动调用技能)），模型再直接调用包内工具。
 
 - **路径与 cwd 无关**：绝对路径由插件自身模块位置推导，任何工作区下都相同；包内不含个人路径或环境信息。
 - **可重定位**：设置环境变量 `DSH_AIMY_SKILL_DIR` 指向别处的副本（例如本仓库 checkout）即可覆盖默认位置。
@@ -148,6 +190,8 @@ assets/
 | `defaultStrategy` | string | 全局默认策略 | 经 `defaultActive` 进入破甲模式的 agent 所用策略 id（未知 id 在插件加载时失败）；设为 `aimy-skill` 即默认启用内置工具链 |
 | `workspaceSubdir` | string | `tvd` | TVD 工作区在会话 cwd 下的子目录（仅 TVD 策略生效，须为无分隔符的单路径段） |
 | `validatorModel` | string | 空 | 写入 TVD 文件 `{{validatorModel}}` 的分类模型名（`tvd-guard` 运行验证器所需；为空则降级为仅提示词变体） |
+| `aimyAutoSkills` | boolean | `true` | 是否按请求自动加载匹配的技能文档（`aimy-skill` 策略生效；关闭后退回纯提示词模式） |
+| `aimyAutoSkillLimit` | number | `2` | 每步最多自动加载几篇技能文档（正整数） |
 
 ## 环境变量
 
@@ -163,6 +207,9 @@ assets/
 - `/jailbreak aimy-skill`：启用内置 AIMY 工具链
 - 未知策略 id 会明确报错，不会静默降级
 
+模型侧工具：`aimy_skill`（`action: list | search | load`）——只读地浏览、检索或读取内置技能文档。
+该工具随插件挂载即注册（不随策略切换而增删），因此任何策略下都能显式读取内置技能库。
+
 ## 已知限制
 
 - 破甲模式只为评估而改写提示词，不会移除提供方一侧的审核。
@@ -170,6 +217,8 @@ assets/
 - 策略模板构建期固定；按部署自定义模板暂不支持。
 - TVD 策略在缺少 `fs` 服务、`validatorModel` 为空或脚手架失败时降级为仅提示词变体，从不阻塞轮次。
 - `aimy-skill` 只写入内置资源路径，不校验其存在性：路径缺失时模型看到的是明确的绝对路径，可据此报告或改用 `DSH_AIMY_SKILL_DIR`。
+- 自动调用是**关键词匹配**，不是语义理解：请求用词偏离触发词表时不会自动加载，反之个别通用措辞也可能多加载一篇相关文档。匹配失败、索引缺失或读取异常一律静默降级为纯提示词模式，从不阻塞轮次；被共享的通用触发词（如 `api`）会被自动降权，无法单独决定加载哪一篇。
+- 自动加载的文档计入上下文长度：每篇最大约 31 KB，默认每步最多 2 篇，可用 `aimyAutoSkillLimit` 调整。
 - 内置工具链的 Python 依赖不在本包内，需在使用前自行安装（见上节）。
 
 ## 第三方组件

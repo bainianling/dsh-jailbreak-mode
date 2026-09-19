@@ -9,16 +9,16 @@
 | 分支 | `v1` |
 | 定位 | **渗透型破甲分支（Penetration-oriented jailbreak branch）** |
 | 基线 | 从 `master`（`a73b34e`）切出 |
-| 版本 | `@bainianling/dsh-jailbreak-mode@0.1.0-rc.14` |
-| 变更规模 | 454 个文件，+119,531 / −12 |
+| 版本 | `@bainianling/dsh-jailbreak-mode@0.1.0-rc.15` |
 | 上游 | <https://github.com/bainianling/dsh-jailbreak-mode/tree/v1> |
 
-分支上的两个提交（HEAD 以远端为准，见上方链接）：
+分支上的提交（HEAD 以远端为准，见上方链接）：
 
 | commit | 内容 |
 |--------|------|
 | `8b61ba5` | `feat(aimy): bundle the aimy-skill toolkit behind a new jailbreak strategy` —— 内置工具链 + 新策略 |
 | `ddc182c` | `docs(v1): describe the branch as the penetration-oriented jailbreak line` —— 本文与 README 横幅 |
+| 后续提交 | `feat(aimy): auto-load the matching playbook on each request` —— 触发词索引 + 自动注入 + `aimy_skill` 工具 |
 
 ## 一句话定位
 
@@ -66,6 +66,8 @@ harness）上的**独立第三方**插件。它不改动宿主代码，只在**�
 | `defaultStrategy` | string | 全局默认 | `defaultActive` 生效时采用的策略 id；未知 id 在插件加载期失败 |
 | `workspaceSubdir` | string | `tvd` | TVD 工作区在会话 cwd 下的子目录（仅 `tvd-guard` 使用） |
 | `validatorModel` | string | 空 | 写入 TVD 文件的分类模型名；为空则降级为纯提示词变体 |
+| `aimyAutoSkills` | boolean | `true` | 是否按请求自动加载匹配的技能文档（仅 `aimy-skill` 使用） |
+| `aimyAutoSkillLimit` | number | `2` | 每步最多自动加载几篇技能文档（正整数） |
 
 渗透场景推荐配置：
 
@@ -95,7 +97,7 @@ harness）上的**独立第三方**插件。它不改动宿主代码，只在**�
 | `continuation` | continuation | high | draft | 包装 |
 | `gpt56-sol-unrestricted` | prompt-injection | high | executor | 不包装 |
 | `reverse-engineering` | reverse-engineering | medium | static / dynamic / evidence | 包装 |
-| **`aimy-skill`** | **security-toolkit** | **high** | **pentest / toolkit / bundled / claim-extraction** | **不包装** |
+| **`aimy-skill`** | **security-toolkit** | **high** | **pentest / toolkit / bundled / auto-skills** | **不包装** |
 | `tvd-guard` | tool-loop | medium | validator / tvd | 不包装 |
 
 其中 `reverse-engineering` 与 `aimy-skill` 是本分支的渗透相关主力：

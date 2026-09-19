@@ -32,6 +32,7 @@ describe('aimy-skill bundle resolution', () => {
     const paths = resolveAimySkillPaths(env(process.cwd()))
     expect(paths.root).toBe(process.cwd())
     expect(paths.index.endsWith('aimy-skill-index.md')).toBe(true)
+    expect(paths.triggers.endsWith('aimy-skill-triggers.json')).toBe(true)
   })
 
   it('ignores a blank override and falls back to the packaged location', () => {

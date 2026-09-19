@@ -4,3 +4,5 @@ coverage/
 *.log
 .DS_Store
 *.tsbuildinfo
+.rebuilt.json
+.probe-format.json

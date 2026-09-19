@@ -25,6 +25,9 @@ export const AIMY_SKILL_DIR = 'assets/aimy-skill'
 /** Path of the generated bundle index inside the package, relative to the package root. */
 export const AIMY_SKILL_INDEX = 'assets/aimy-skill-index.md'
 
+/** Path of the generated trigger index inside the package, relative to the package root. */
+export const AIMY_SKILL_TRIGGERS = 'assets/aimy-skill-triggers.json'
+
 /** Environment variable that relocates the bundle (a checkout, or an unpacked copy). */
 export const AIMY_SKILL_DIR_ENV = 'DSH_AIMY_SKILL_DIR'
 
@@ -50,7 +53,7 @@ export const AIMY_SKILL_COMMAND_COUNT = 87
 const PACKAGE_ROOT = new URL('../', import.meta.url)
 
 /**
- * A resolved bundle location. Both paths are absolute; whether the directory
+ * A resolved bundle location. Every path is absolute; whether the directory
  * actually exists is the deployment's business, so callers only render them.
  */
 export interface AimySkillPaths {
@@ -58,6 +61,8 @@ export interface AimySkillPaths {
   readonly root: string
   /** Absolute path of the generated index document. */
   readonly index: string
+  /** Absolute path of the generated trigger index used for automatic selection. */
+  readonly triggers: string
 }
 
 /**
@@ -74,11 +79,13 @@ export function resolveAimySkillPaths(env: NodeJS.ProcessEnv = process.env): Aim
   const override = env[AIMY_SKILL_DIR_ENV]?.trim()
   if (override !== undefined && override.length > 0) {
     const root = resolve(override)
-    return { root, index: join(dirname(root), 'aimy-skill-index.md') }
+    const beside = dirname(root)
+    return { root, index: join(beside, 'aimy-skill-index.md'), triggers: join(beside, 'aimy-skill-triggers.json') }
   }
   return {
     root: fileURLToPath(new URL(`${AIMY_SKILL_DIR}/`, PACKAGE_ROOT)),
     index: fileURLToPath(new URL(AIMY_SKILL_INDEX, PACKAGE_ROOT)),
+    triggers: fileURLToPath(new URL(AIMY_SKILL_TRIGGERS, PACKAGE_ROOT)),
   }
 }
 

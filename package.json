@@ -1,7 +1,7 @@
 {
   "name": "@bainianling/dsh-jailbreak-mode",
-  "description": "Logged per-agent jailbreak mode: automatic prompt-injection prefix for red-team safety evaluation, with the bundled aimy-skill pentest toolkit",
-  "version": "0.1.0-rc.14",
+  "description": "Logged per-agent jailbreak mode: automatic prompt-injection prefix for red-team safety evaluation, with the bundled aimy-skill pentest toolkit and automatic playbook selection",
+  "version": "0.1.0-rc.15",
   "publishConfig": {
     "access": "public"
   },
@@ -32,6 +32,14 @@
     "./aimy": {
       "types": "./lib/aimy.d.ts",
       "default": "./lib/aimy.js"
+    },
+    "./aimy-triggers": {
+      "types": "./lib/aimy-triggers.d.ts",
+      "default": "./lib/aimy-triggers.js"
+    },
+    "./aimy-tool": {
+      "types": "./lib/aimy-tool.d.ts",
+      "default": "./lib/aimy-tool.js"
     },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
@@ -87,6 +95,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.check.json",
     "test": "vitest run",
+    "generate:triggers": "node scripts/generate-aimy-triggers.mjs",
     "prepack": "npm run build"
   }
 }

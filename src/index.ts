@@ -34,6 +34,15 @@ import type { JailbreakStrategy } from './strategies.js'
 import type { JailbreakProjection } from './types.js'
 import { DEFAULT_TVD_SUBDIR, scaffoldTvdWorkspace, renderTvdSystem, workspaceRoot, type TvdTemplateVars } from './tvd.js'
 import { resolveAimySkillPaths, renderAimySkillSystem, type AimySkillPaths } from './aimy.js'
+import {
+  AIMY_INJECTION_MAX_SKILLS,
+  injectedAimySkills,
+  loadAimyTriggerIndex,
+  matchAimySkills,
+  renderAimyInjections,
+  type AimySkillInjectionSource,
+} from './aimy-triggers.js'
+import { defineAimySkillTool } from './aimy-tool.js'
 // The `jailbreak` projection-key declaration lives in src/types.ts (its one home);
 // this re-export projects the type face onto the package root AND keeps the
 // module edge in the emitted index.d.ts, so aggregate programs consuming the
@@ -47,11 +56,36 @@ export {
   AIMY_SKILL_DIR,
   AIMY_SKILL_DIR_ENV,
   AIMY_SKILL_INDEX,
+  AIMY_SKILL_TRIGGERS,
   AIMY_SKILL_UPSTREAM,
   resolveAimySkillPaths,
   renderAimySkillSystem,
 } from './aimy.js'
 export type { AimySkillPaths } from './aimy.js'
+export {
+  AIMY_INJECTION_CHAR_BUDGET,
+  AIMY_INJECTION_MAX_SKILLS,
+  aimySkillByName,
+  aimyTriggersPath,
+  genericTriggers,
+  injectedAimySkills,
+  loadAimyTriggerIndex,
+  matchAimySkills,
+  parseAimyTriggerIndex,
+  readAimySkill,
+  renderAimyInjections,
+  renderAimySkillInjection,
+  renderAimySkillCatalog,
+  renderAimySkillLoad,
+} from './aimy-triggers.js'
+export type {
+  AimyInjection,
+  AimySkillInjectionSource,
+  AimySkillMatch,
+  AimyTriggerEntry,
+  AimyTriggerIndex,
+} from './aimy-triggers.js'
+export { AIMY_TOOL_NAME, defineAimySkillTool } from './aimy-tool.js'
 
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
@@ -106,6 +140,21 @@ export interface JailbreakModeConfig {
    * degrades that strategy to the prompt-only variant. Defaults to empty.
    */
   validatorModel?: string
+  /**
+   * Whether the `aimy-skill` strategy automatically loads the bundled playbook
+   * that matches each request. When true (the default), the step's own user text
+   * is scored against the generated trigger index and a clear match has that
+   * `SKILL.md` injected as instructions context, once per session, before the
+   * model answers. The prompt-only fallback remains: the toolkit location is
+   * still rendered into the system block, so turning this off changes only
+   * whether selection is automatic.
+   */
+  aimyAutoSkills?: boolean
+  /**
+   * Maximum playbooks auto-loaded per step. Defaults to 2. Raising it costs
+   * context on every matching step, since each body is up to ~31 KB.
+   */
+  aimyAutoSkillLimit?: number
 }
 
 /**
@@ -115,6 +164,8 @@ export interface JailbreakModeConfig {
 export interface ResolvedJailbreakModeConfig extends JailbreakModeConfig {
   defaultActive: boolean
   workspaceSubdir: string
+  aimyAutoSkills: boolean
+  aimyAutoSkillLimit: number
 }
 
 /**
@@ -128,9 +179,11 @@ export function resolveConfig(config: JailbreakModeConfig): ResolvedJailbreakMod
   const unknown = Object.keys(config).filter(key => key !== 'defaultActive'
     && key !== 'defaultStrategy'
     && key !== 'workspaceSubdir'
-    && key !== 'validatorModel')
+    && key !== 'validatorModel'
+    && key !== 'aimyAutoSkills'
+    && key !== 'aimyAutoSkillLimit')
   if (unknown.length > 0) {
-    throw new Error(`JailbreakModeConfig has unknown key(s) ${unknown.join(', ')} — config is { defaultActive, defaultStrategy, workspaceSubdir, validatorModel }`)
+    throw new Error(`JailbreakModeConfig has unknown key(s) ${unknown.join(', ')} — config is { defaultActive, defaultStrategy, workspaceSubdir, validatorModel, aimyAutoSkills, aimyAutoSkillLimit }`)
   }
   const defaultStrategy = config.defaultStrategy
   if (defaultStrategy !== undefined && strategyById(defaultStrategy) === undefined) {
@@ -140,9 +193,15 @@ export function resolveConfig(config: JailbreakModeConfig): ResolvedJailbreakMod
   if (workspaceSubdir !== undefined && (workspaceSubdir.trim().length === 0 || workspaceSubdir.includes('/') || workspaceSubdir.includes('\\'))) {
     throw new Error('workspaceSubdir must be a non-empty path segment without separators')
   }
+  const aimyAutoSkillLimit = config.aimyAutoSkillLimit
+  if (aimyAutoSkillLimit !== undefined && (!Number.isInteger(aimyAutoSkillLimit) || aimyAutoSkillLimit < 1)) {
+    throw new Error('aimyAutoSkillLimit must be a positive integer')
+  }
   const result: ResolvedJailbreakModeConfig = {
     defaultActive: config.defaultActive ?? false,
     workspaceSubdir: workspaceSubdir ?? DEFAULT_TVD_SUBDIR,
+    aimyAutoSkills: config.aimyAutoSkills ?? true,
+    aimyAutoSkillLimit: aimyAutoSkillLimit ?? AIMY_INJECTION_MAX_SKILLS,
   }
   if (defaultStrategy !== undefined) result.defaultStrategy = defaultStrategy
   if (config.validatorModel !== undefined) result.validatorModel = config.validatorModel
@@ -256,6 +315,27 @@ function wrapMessage(message: UserMessage, prefix: string, suffix: string): User
 }
 
 /**
+ * The step's own user text, from the claimed batch only.
+ *
+ * Skill selection reads this and nothing else: injected content and tool
+ * results must not be able to select a further skill, or one automatic load
+ * could cascade into another.
+ *
+ * @param messages - the step's claimed messages.
+ * @returns Concatenated direct-user text, or `''` when there is none.
+ */
+function claimedUserText(messages: readonly UserMessage[]): string {
+  const parts: string[] = []
+  for (const message of messages) {
+    if (message.source.kind !== 'user') continue
+    for (const block of message.content) {
+      if (block.type === 'text') parts.push(block.text)
+    }
+  }
+  return parts.join('\n')
+}
+
+/**
  * `ctx.jailbreakMode`: owns logged jailbreak state, applies and narrates
  * selected state at step start, wraps claimed user messages while active,
  * the `jailbreak:policy` section, and the `/jailbreak` command.
@@ -282,6 +362,12 @@ export class JailbreakModeController extends Service {
    */
   private readonly aimyPaths: AimySkillPaths
 
+  /** Whether the bundled toolkit's playbooks load automatically on a match. */
+  private readonly aimyAutoSkills: boolean
+
+  /** Maximum playbooks auto-loaded per step. */
+  private readonly aimyAutoSkillLimit: number
+
   /** Workspaces already scaffolded per session, so pre-step re-entry does not rewrite them. */
   private readonly scaffolded = new WeakSet<Session>()
 
@@ -298,6 +384,8 @@ export class JailbreakModeController extends Service {
     this.workspaceSubdir = resolved.workspaceSubdir
     this.tvdVars = { validatorModel: resolved.validatorModel ?? '' }
     this.aimyPaths = resolveAimySkillPaths()
+    this.aimyAutoSkills = resolved.aimyAutoSkills
+    this.aimyAutoSkillLimit = resolved.aimyAutoSkillLimit
     // A deployment-owned "this preset is a jailbreak harness" flag: agents
     // created under this composition start active UNLESS their log already
     // carries a `jailbreak/mode` record (resume/refork keeps the logged value;
@@ -345,12 +433,32 @@ export class JailbreakModeController extends Service {
       if (strategy.tvd !== undefined) {
         await this.ensureScaffold(agent, strategy, signal)
       }
-      if (strategy.prefix === '' && strategy.suffix === '') return decision
+      // Automatic playbook selection for the bundled toolkit. Only the
+      // `aimy-skill` strategy carries an `aimy` descriptor, and that strategy
+      // declares no prefix/suffix, so an injected playbook is never itself
+      // wrapped by the branch below: the strategy's framing applies to the
+      // user's request, not to the reference material loaded because of it.
+      const injections = this.aimyInjections(agent, strategy, decision.messages)
+      const withInjections = injections === undefined
+        ? decision.messages
+        : [...decision.messages, injections]
+      if (strategy.prefix === '' && strategy.suffix === '') {
+        return withInjections === decision.messages ? decision : { ...decision, messages: withInjections }
+      }
       return {
         ...decision,
-        messages: decision.messages.map(message => wrapMessage(message, strategy.prefix, strategy.suffix)),
+        messages: withInjections.map(message => wrapMessage(message, strategy.prefix, strategy.suffix)),
       }
     })
+
+    // The bundled toolkit's explicit access path. Automatic selection covers a
+    // request that clearly names a technique; this tool covers the rest — the
+    // model can browse the catalog, search it, or read one playbook in full
+    // without knowing a file path. It registers once here rather than per
+    // strategy, so an agent that switches strategy mid-session keeps a working
+    // loader; it reads only the bundled index and files, so it is inert for any
+    // strategy that never mentions the toolkit.
+    ctx.tools.register(defineAimySkillTool(this.aimyPaths))
 
     ctx.systemPrompt.section({
       name: 'jailbreak:policy',
@@ -469,6 +577,55 @@ export class JailbreakModeController extends Service {
           }
         },
       })
+    })
+  }
+
+  /**
+   * Select and render the bundled playbooks that match this step's own request.
+   *
+   * Selection is deterministic and plugin-owned: the step's direct user text is
+   * scored against the generated trigger index, and a clear match has its
+   * `SKILL.md` injected as instructions context appended after every other
+   * message, closest to the model's answer. Nothing is injected twice — a skill
+   * already present in this session's log is skipped — and the whole path
+   * degrades to `undefined` rather than failing a step.
+   *
+   * @param agent - the agent whose request is being assembled.
+   * @param strategy - the active strategy; must carry an `aimy` bundle descriptor.
+   * @param messages - the step's claimed messages.
+   * @returns The injection message, or `undefined` when there is nothing to inject.
+   */
+  private aimyInjections(
+    agent: Agent,
+    strategy: JailbreakStrategy,
+    messages: readonly UserMessage[],
+  ): UserMessage | undefined {
+    if (strategy.aimy === undefined || !this.aimyAutoSkills) return undefined
+    const text = claimedUserText(messages)
+    if (text.trim().length === 0) return undefined
+    const index = loadAimyTriggerIndex(this.aimyPaths)
+    if (index === undefined) return undefined
+    let matches: ReturnType<typeof matchAimySkills>
+    try {
+      matches = matchAimySkills(index, text, this.aimyAutoSkillLimit, injectedAimySkills(agent.session.snapshotEvents()))
+    } catch (error) {
+      this.ctx.logger.warn('dsh-jailbreak-mode: failed to match bundled skills for agent "%s": %o', agent.id, error)
+      return undefined
+    }
+    if (matches.length === 0) return undefined
+    let injected: ReturnType<typeof renderAimyInjections>
+    try {
+      injected = renderAimyInjections(this.aimyPaths, matches)
+    } catch (error) {
+      this.ctx.logger.warn('dsh-jailbreak-mode: failed to render bundled skills for agent "%s": %o', agent.id, error)
+      return undefined
+    }
+    if (injected === undefined) return undefined
+    const names = injected.names
+    const source: AimySkillInjectionSource = { kind: 'aimy-skill', form: 'instructions', names }
+    return createUserMessage({
+      content: [{ type: 'text', text: injected.text }],
+      source,
     })
   }
 

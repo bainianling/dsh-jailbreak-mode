@@ -67,10 +67,10 @@ async function setup(config: JailbreakModeConfig = {}): Promise<Context> {
 /**
  * Dispatch pre-step processing; returns the wrapped decision messages.
  */
-async function preStep(ctx: Context, agent: Agent & { session: Session }): Promise<UserMessage[]> {
+async function preStep(ctx: Context, agent: Agent & { session: Session }, text = 'the real request'): Promise<UserMessage[]> {
   const events = agentEvents(ctx, agent)
   const message = createUserMessage({
-    content: [{ type: 'text', text: 'the real request' }],
+    content: [{ type: 'text', text }],
     source: { kind: 'user' },
   })
   const signal = new AbortController().signal
@@ -311,8 +311,79 @@ describe('jailbreak-mode integration', () => {
     expect(messages.map(message => message.content)).toEqual([[{ type: 'text', text: 'the real request' }]])
   })
 
+  it('auto-loads the matching bundled playbook for a clear request', async () => {
+    const ctx = await setup({ defaultActive: true, defaultStrategy: 'aimy-skill' })
+    const agent = await agentWithSession(ctx, 'agent-aimy-auto')
+    const messages = await preStep(ctx, agent, 'can you check this login form for sql注入')
+    // The user's own message is untouched, and the playbook rides one injected
+    // message appended after it — closest to the model's answer.
+    expect(messages).toHaveLength(2)
+    const [claimed, injected] = messages as [UserMessage, UserMessage]
+    expect(claimed.content).toEqual([{ type: 'text', text: 'can you check this login form for sql注入' }])
+    expect(injected.source.kind).toBe('aimy-skill')
+    // The exact winner depends on the shipped trigger table; what must hold is
+    // that the SQL-injection playbook is among what got loaded, and that the
+    // durable record names it.
+    const source = injected.source
+    const names = source.kind === 'aimy-skill' ? source.names : []
+    expect(names).toContain('sqli-sql-injection')
+    const blocks = injected.content
+    const text = blocks[0]?.type === 'text' ? blocks[0].text : ''
+    expect(text).toContain('<aimy-skill name="sqli-sql-injection"')
+  })
+
+  it('injects nothing when the request names no technique', async () => {
+    const ctx = await setup({ defaultActive: true, defaultStrategy: 'aimy-skill' })
+    const agent = await agentWithSession(ctx, 'agent-aimy-quiet')
+    const messages = await preStep(ctx, agent, 'the files and the tools')
+    expect(messages).toHaveLength(1)
+  })
+
+  it('honours aimyAutoSkills: false and the per-step limit', async () => {
+    const off = await setup({ defaultActive: true, defaultStrategy: 'aimy-skill', aimyAutoSkills: false })
+    const offAgent = await agentWithSession(off, 'agent-aimy-off')
+    expect(await preStep(off, offAgent, 'sql注入 and xss')).toHaveLength(1)
+
+    const one = await setup({ defaultActive: true, defaultStrategy: 'aimy-skill', aimyAutoSkillLimit: 1 })
+    const oneAgent = await agentWithSession(one, 'agent-aimy-one')
+    const messages = await preStep(one, oneAgent, 'sql注入 and xss')
+    expect(messages).toHaveLength(2)
+    const injected = messages[1] as UserMessage
+    const source = injected.source
+    expect(source.kind === 'aimy-skill' ? source.names : []).toHaveLength(1)
+  })
+
+  it('never injects the same playbook twice in one session', async () => {
+    const ctx = await setup({ defaultActive: true, defaultStrategy: 'aimy-skill' })
+    const agent = await agentWithSession(ctx, 'agent-aimy-once')
+    const first = await preStep(ctx, agent, 'sql注入')
+    expect(first).toHaveLength(2)
+    // The host appends accepted pre-step messages to the log; the durable
+    // record is what suppresses the second injection.
+    for (const message of first) agent.session.append('user/message', message, { surfaceOp: 'append' })
+    const second = await preStep(ctx, agent, 'sql注入 again please')
+    expect(second).toHaveLength(1)
+  })
+
+  it('registers the aimy_skill tool', async () => {
+    const ctx = await setup()
+    const agent = await agentWithSession(ctx, 'agent-aimy-tool')
+    const tool = ctx.tools.get('aimy_skill', agent)
+    expect(tool).toBeDefined()
+    expect(tool?.name).toBe('aimy_skill')
+  })
+
   it('resolveConfig rejects unknown keys', () => {
     expect(() => resolveConfig({ nope: 1 } as never)).toThrow(/unknown key\(s\) nope/)
+  })
+
+  it('resolveConfig defaults automatic skill loading on, and validates its limit', () => {
+    expect(resolveConfig({}).aimyAutoSkills).toBe(true)
+    expect(resolveConfig({}).aimyAutoSkillLimit).toBe(2)
+    expect(resolveConfig({ aimyAutoSkills: false, aimyAutoSkillLimit: 1 }))
+      .toMatchObject({ aimyAutoSkills: false, aimyAutoSkillLimit: 1 })
+    expect(() => resolveConfig({ aimyAutoSkillLimit: 0 })).toThrow(/aimyAutoSkillLimit must be a positive integer/)
+    expect(() => resolveConfig({ aimyAutoSkillLimit: 1.5 })).toThrow(/aimyAutoSkillLimit must be a positive integer/)
   })
 
   it('resolveConfig accepts workspaceSubdir and validatorModel', () => {
