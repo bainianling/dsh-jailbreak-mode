@@ -1,12 +1,16 @@
 # assets/ —— 内置资源
 
 本目录存放随 npm 包一起分发的内置资源。它们**不是**构建产物，只被 `src/aimy.ts`
-按插件自身模块位置解析后渲染进 `aimy-skill` 策略的系统块。
+按插件自身模块位置解析后渲染进 `aimy-skill` 策略的系统块；`aimy-skill-triggers.json`
+另外被 `src/aimy-triggers.ts` 读取，用于按请求自动选择技能。
+
+生成的索引都放在 `aimy-skill/` **同级**而非树内，这样内置树本身保持逐字节不变。
 
 | 路径 | 说明 | 修改权限 |
 |------|------|----------|
 | `aimy-skill/` | 上游 [Prohao42/aimy-skill](https://github.com/Prohao42/aimy-skill) 的**逐字节副本**（441 个文件，不含 `.git`） | **只读**：请勿手工编辑 |
 | `aimy-skill-index.md` | 由 `aimy-skill/` 树生成的资源索引（102 技能 / 136 模块 / 87 CLI 命令） | 生成物，随上游更新重生成 |
+| `aimy-skill-triggers.json` | 由 `aimy-skill/` 树生成的触发词索引（102 技能 / 877 触发词），供自动调用使用 | 生成物：`pnpm run generate:triggers` |
 
 ## 来源与可核对性
 
@@ -38,4 +42,5 @@ done
 ```
 
 计数一致性由 `tests/aimy.spec.ts` 断言：策略元数据与导出的 `AIMY_SKILL_*` 常量
-必须与 `aimy-skill-index.md` 中记录的数量相同。
+必须与 `aimy-skill-index.md` 中记录的数量相同；触发词索引的结构与行为由
+`tests/aimy-triggers.spec.ts` 断言（含"重新内置后仍能正确路由"的固定探针）。

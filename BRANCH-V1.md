@@ -18,7 +18,8 @@
 |--------|------|
 | `8b61ba5` | `feat(aimy): bundle the aimy-skill toolkit behind a new jailbreak strategy` —— 内置工具链 + 新策略 |
 | `ddc182c` | `docs(v1): describe the branch as the penetration-oriented jailbreak line` —— 本文与 README 横幅 |
-| 后续提交 | `feat(aimy): auto-load the matching playbook on each request` —— 触发词索引 + 自动注入 + `aimy_skill` 工具 |
+| `7ddbad7` | `docs(v1): record the npm .gitignore exclusion and refresh the tarball` —— 修正一致性保证范围 |
+| `bd43127` | `feat(aimy): auto-load the matching playbook on each request` —— 触发词索引 + 自动注入 + `aimy_skill` 工具 |
 
 ## 一句话定位
 
@@ -150,6 +151,7 @@ harness）上的**独立第三方**插件。它不改动宿主代码，只在**�
 ```
 assets/
 ├── aimy-skill-index.md        生成的索引（不手写计数）
+├── aimy-skill-triggers.json   生成的触发词索引（877 个触发词，自动调用用）
 └── aimy-skill/                上游逐字节副本（441 文件）
     ├── main.py                 CLI 入口：python main.py <command>
     ├── requirements.txt        requests / beautifulsoup4 / PyJWT / cryptography
@@ -254,18 +256,65 @@ python main.py --kali-host <h> kali <sub>   # kali 组（14 条子命令）
 在任何工作区下都相同；包内不含个人路径或环境信息。
 
 ```ts
-resolveAimySkillPaths(env?)  // → { root, index } 均为绝对路径
+resolveAimySkillPaths(env?)  // → { root, index, triggers } 均为绝对路径
 ```
 
-- 默认：`<package>/assets/aimy-skill/` 与 `<package>/assets/aimy-skill-index.md`
-- 覆盖：环境变量 `DSH_AIMY_SKILL_DIR` 指向别处的副本（例如仓库 checkout）
+- 默认：`<package>/assets/aimy-skill/`、`<package>/assets/aimy-skill-index.md` 与
+  `<package>/assets/aimy-skill-triggers.json`
+- 覆盖：环境变量 `DSH_AIMY_SKILL_DIR` 指向别处的副本（例如仓库 checkout）；此时另外两个
+  生成索引按**同级目录**推导
 - 解析是**纯函数**（不做文件系统探测）：发布包的布局由 `package.json` 的 `files` 固定
 - 策略提示词要求产物写入**会话工作目录**，工具链目录只读
 
 已在真实安装布局下验证：把 tarball 装进空项目后，`root` 落在 `node_modules/@bainianling/...`
 内、`main.py` 与 102 个技能目录均存在，且路径不在 cwd 之下。
 
-### 2.7 运行环境
+### 2.7 自动调用技能（本分支的核心行为）
+
+只把工具链位置写进系统提示词，等于把"读不读、读哪篇"交给模型自觉，且这个过程不可见。
+本分支改为**插件自己确定性地选**：
+
+| 步骤 | 实现 |
+|------|------|
+| 生成索引 | `scripts/generate-aimy-triggers.mjs` → `assets/aimy-skill-triggers.json`（102 技能 / 877 触发词） |
+| 匹配打分 | `src/aimy-triggers.ts` 的 `matchAimySkills` |
+| 注入 | `src/index.ts` 的 `agent/pre-step` 钩子 |
+| 显式读取 | `src/aimy-tool.ts` 注册的 `aimy_skill` 工具 |
+
+**两级触发词与降权规则**（判定权在运行时代码，不只靠数据）：
+
+- `strong`（技能全名 + 手写中英别名，如 `sqli` / `sql注入` / `linux提权`）权重 **3**，单条即路由。
+- `weak`（技能名单词，如 `cross`、`site`）权重 **1**，必须累积到阈值 **3**。
+- `genericTriggers()` 再把"过泛词"降为弱权重：被 **≥3 个技能共用**的触发词（`api`、`auth`），
+  以及一组**类名词与泄漏的功能词**（`type`、`path`，以及 `arbitrary-write-to-rce` 名中的 `to`）。
+  降权只降低权重，不把技能踢出路由。因此 `what type of file is this` 不会加载类型混淆技能，
+  但 `turn this arbitrary write into rce` 仍能命中。
+
+**运行时约束**：
+
+- 只读本步**用户自己**的文本；注入内容与工具结果不参与匹配，避免链式级联。
+- 匹配按词边界（`type` 不会在 `prototype` 里命中），英文允许常见词形变化（`hack` 命中 `hacking`）。
+- 每会话每篇只注入一次：注入消息的来源标记 `aimy-skill` 携带技能名并写入会话日志，后续步据此去重。
+- 双重预算：每步最多 `aimyAutoSkillLimit`（默认 2）篇，总字符上限 48,000；超预算**显式截断**并给出
+  完整文件路径，不静默截半。
+- 注入位置在所有消息**最后**（最靠近模型作答处）；来源标记为 `plugin`/`aimy-skill` 的
+  `instructions` 上下文。
+- 任何失败（索引缺失/损坏、文件读不到、渲染异常）一律**静默降级**为纯提示词模式，从不阻塞轮次。
+
+**配置**：
+
+| 配置 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `aimyAutoSkills` | boolean | `true` | 是否按请求自动加载匹配的技能文档；关闭即退回纯提示词模式 |
+| `aimyAutoSkillLimit` | number | `2` | 每步最多自动加载几篇（正整数） |
+
+**显式工具**：`aimy_skill`（`action: list | search | load`）随插件挂载即注册、不随策略增删，
+因此任何策略下都能浏览/检索/读取内置技能库。该工具**只读**：不运行工具链里的 Python，不写文件。
+
+自动调用**只决定"把哪篇技能文档放进上下文"**，不改变工具链本身的权限：包内 Python 工具仍由模型
+显式调用，仍然只应对授权目标使用。
+
+### 2.8 运行环境
 
 ```bash
 cd <内置根>                       # 或 $DSH_AIMY_SKILL_DIR
@@ -277,7 +326,7 @@ python main.py --help
 - `kali` 组命令需要可达的 Kali 主机（`--kali-host`）或本地 Kali（`--kali-local`）。
 - Python 依赖**不在本包内**，需使用前自行安装。
 
-### 2.8 系统块渲染的内容
+### 2.9 系统块渲染的内容
 
 激活 `aimy-skill` 后，模型在系统提示词中实际拿到：
 
@@ -289,7 +338,8 @@ python main.py --help
    （先装依赖、在工具链根目录跑 `python main.py <command>`），并要求相对路径都相对内置根解析、
    产物写在工作目录。
 
-索引本身**被引用而非内联**——它覆盖数百条目，设计为按需读取。
+索引本身**被引用而非内联**——它覆盖数百条目，设计为按需读取。此外策略提示词会说明：**匹配当前请求
+的技能文档已自动加载**，未覆盖时用 `aimy_skill` 工具检索或整篇读取（见 2.7）。
 
 ---
 
@@ -297,28 +347,36 @@ python main.py --help
 
 ```
 master (a73b34e)
-   └── v1  ← 本分支（两个提交：内置工具链 + 分支文档）
+   └── v1  ← 本分支（四个提交：内置工具链 → 分支文档 → 一致性修正 → 自动调用）
 ```
 
 | 变更 | 内容 |
 |------|------|
-| 新增资源 | `assets/aimy-skill/`（441 文件）、`assets/aimy-skill-index.md`、`assets/README.md` |
-| 新增模块 | `src/aimy.ts`（路径解析 + 系统块渲染），导出 `./aimy` 子路径 |
+| 新增资源 | `assets/aimy-skill/`（441 文件）、`assets/aimy-skill-index.md`、`assets/aimy-skill-triggers.json`、`assets/README.md` |
+| 新增模块 | `src/aimy.ts`（路径解析 + 系统块渲染）、`src/aimy-triggers.ts`（匹配/注入）、`src/aimy-tool.ts`（`aimy_skill` 工具） |
+| 新增脚本 | `scripts/generate-aimy-triggers.mjs`（`pnpm run generate:triggers`） |
 | 新增策略 | `aimy-skill`（id / 名称 / 4 段 system / `aimy` 描述符 / 类别 `security-toolkit`） |
-| 新增测试 | `tests/aimy.spec.ts`（9 项）+ `jailbreak-mode.spec.ts` 集成断言 1 项 |
-| 元数据 | 版本 → `0.1.0-rc.14`，`files: ["lib", "assets"]`，description 提及内置工具链 |
+| 新增配置 | `aimyAutoSkills`（默认 `true`）、`aimyAutoSkillLimit`（默认 `2`） |
+| 新增工具 | `aimy_skill`（`list` / `search` / `load`，只读） |
+| 新增测试 | `tests/aimy-triggers.spec.ts`（27 项）+ 既有文件扩展断言 |
+| 元数据 | 版本 → `0.1.0-rc.15`，`files: ["lib", "assets"]`，description 提及自动选择 |
 | 构建约定 | `.gitattributes` 为 `assets/aimy-skill/**` 关闭 text/eol/编码转换 |
 | 文档 | `README.md`、`STRATEGIES.md`、`BRANCH-V1.md`（本文） |
-| 产物 | `dist/npm/bainianling-dsh-jailbreak-mode-0.1.0-rc.14.tgz`（3,021,459 字节） |
+| 产物 | `dist/npm/bainianling-dsh-jailbreak-mode-0.1.0-rc.15.tgz`（3,054,204 字节，472 条目） |
 
 ## 四、质量验证
 
 | 项 | 结果 |
 |----|------|
-| 类型检查 | `tsc --noEmit -p tsconfig.check.json` 通过 |
-| 单元测试 | **90 项全通过**（5 个测试文件；含 9 项 aimy 专项 + 1 项集成断言） |
-| 内置树一致性 | 441/441 blob 与上游 commit 一致（对**提交对象**复核，非仅工作区） |
-| 真实安装 | tarball 装入空项目后路径解析、`main.py`、102 技能目录均存在 |
+| 类型检查 | `tsc --noEmit -p tsconfig.check.json` 退出码 0 |
+| 构建 | `tsc -p tsconfig.json` 退出码 0（含新模块 `.js` + `.d.ts`） |
+| 单元测试 | **123 项全通过**（6 个测试文件；其中 `aimy-triggers.spec.ts` 27 项） |
+| 匹配行为 | 真实编译产物 + 真实数据跑 15 个探针：10 个正例全部命中，5 个负例全部零匹配 |
+| 注入渲染 | 真实 `SKILL.md` 注入含 `<aimy-skill>` 框架、绝对路径、伴随文档名与命中理由 |
+| 内置树一致性 | 441/441 blob 与上游 commit 一致；本次改动**未触碰** `assets/aimy-skill/`（`git status` 为空） |
+| 数据完整性 | 102 技能、描述 0 处截断、45 篇带伴随文档、触发词 789 强 + 88 弱 = 877 |
+| 行尾/编码 | 全部暂存 blob 字节级为纯 LF（`.gitattributes` 规则生效） |
+| 打包内容 | 472 条目，新模块与触发词索引均在包内；assets 442 条目 |
 | 计数一致性 | 策略元数据与 `AIMY_SKILL_*` 常量由测试断言对齐索引 |
 | 凭据扫描 | 无密钥 / 令牌 / 私钥模式命中 |
 | 隐私扫描 | 无本机路径或用户名（命中的 `/home/user/` 等为上游通用示例） |
